@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Home } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -96,6 +97,15 @@ export default function Login() {
               Create an account
             </Link>
           </p>
+        </div>
+        
+        <div className="mt-4 flex justify-center">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/" className="flex items-center gap-2">
+              <Home size={16} />
+              Return to Home
+            </Link>
+          </Button>
         </div>
       </div>
     </div>

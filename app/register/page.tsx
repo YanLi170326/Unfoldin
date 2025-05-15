@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Home } from 'lucide-react';
 
 export default function Register() {
   const [username, setUsername] = useState('');
@@ -106,6 +107,15 @@ export default function Register() {
               Log in
             </Link>
           </p>
+        </div>
+        
+        <div className="mt-4 flex justify-center">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/" className="flex items-center gap-2">
+              <Home size={16} />
+              Return to Home
+            </Link>
+          </Button>
         </div>
       </div>
     </div>
