@@ -38,11 +38,14 @@ export async function GET() {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error in database setup endpoint:', error);
+    console.error('Database setup error:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     return NextResponse.json(
-      { message: `Database setup error: ${errorMessage}` },
+      { 
+        message: 'Database setup error', 
+        error: errorMessage 
+      },
       { status: 500 }
     );
   }

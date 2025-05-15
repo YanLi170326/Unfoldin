@@ -33,21 +33,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create response with cookie
+    // Create session cookie
     const response = NextResponse.json(
-      { message: 'Login successful', user: { id: user.id, username: user.username } },
+      { message: 'Login successful', userId: user.id },
       { status: 200 }
     );
 
-    // Set cookie
+    // Set cookie (secure in production, not in development)
     response.cookies.set({
       name: 'user_id',
-      value: user.id,
+      value: user.id.toString(),
       httpOnly: true,
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      sameSite: 'strict',
       secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      path: '/',
     });
 
     console.log('Login successful for user:', username);
