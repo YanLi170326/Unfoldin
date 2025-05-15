@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+组件库:shadcn
+
+css库:tailwind
+
+框架:nextjs
+
+状态管理:jotai
+
+数据库:vercle Neon
