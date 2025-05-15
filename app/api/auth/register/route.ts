@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createUser, getUserByUsername } from '@/lib/db';
+import { setupDatabaseSchema } from '@/lib/db-check';
 import bcrypt from 'bcrypt';
 
 export async function POST(request: Request) {
@@ -12,6 +13,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Make sure the database schema is created
+    await setupDatabaseSchema();
 
     // Check if user already exists
     const existingUser = await getUserByUsername(username);
@@ -29,8 +33,9 @@ export async function POST(request: Request) {
     const result = await createUser(username, hashedPassword);
 
     if (!result.success) {
+      console.error('Failed to create user:', result.error);
       return NextResponse.json(
-        { message: 'Failed to create user' },
+        { message: `Failed to create user: ${result.error ? (result.error as any).message || JSON.stringify(result.error) : 'Unknown error'}` },
         { status: 500 }
       );
     }
@@ -41,8 +46,12 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error('Registration error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+    console.error('Error details:', { message: errorMessage, stack: errorStack });
+    
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: `Internal server error: ${errorMessage}` },
       { status: 500 }
     );
   }

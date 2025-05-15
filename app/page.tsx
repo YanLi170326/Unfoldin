@@ -18,6 +18,14 @@ export default function Home() {
             <Link href="/login">Log In</Link>
           </Button>
         </div>
+        
+        {/* Database setup diagnostic link */}
+        <div className="pt-4">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/api/db-setup">Check Database Connection</Link>
+          </Button>
+        </div>
+        
         <div className="pt-12">
           <h2 className="text-2xl font-semibold mb-4">How It Works</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

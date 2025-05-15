@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     // Check if user exists
     const user = await getUserByUsername(username);
     if (!user) {
+      console.log('Login attempt with non-existent username:', username);
       return NextResponse.json(
         { message: 'Invalid username or password' },
         { status: 401 }
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
+      console.log('Login attempt with incorrect password for user:', username);
       return NextResponse.json(
         { message: 'Invalid username or password' },
         { status: 401 }
@@ -48,11 +50,16 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === 'production',
     });
 
+    console.log('Login successful for user:', username);
     return response;
   } catch (error) {
     console.error('Login error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+    console.error('Error details:', { message: errorMessage, stack: errorStack });
+    
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: `Internal server error: ${errorMessage}` },
       { status: 500 }
     );
   }
