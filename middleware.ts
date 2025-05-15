@@ -2,11 +2,6 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Handle any potential (main) route requests - redirect to root
-  if (request.nextUrl.pathname.includes('(main)')) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
   // Get user ID from cookie
   const userId = request.cookies.get('user_id')?.value;
 
@@ -20,5 +15,5 @@ export function middleware(request: NextRequest) {
 
 // Configure which paths the middleware runs on
 export const config = {
-  matcher: ['/dashboard/:path*', '/(main)/:path*'],
+  matcher: ['/dashboard/:path*'],
 }; 

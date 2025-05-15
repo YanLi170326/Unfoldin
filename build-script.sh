@@ -1,6 +1,4 @@
 #!/bin/bash
-# Custom build script to work around the (main) route group issue
-
 # Run the Next.js build
 npm run build
 

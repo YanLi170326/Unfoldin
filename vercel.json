@@ -1,7 +1,5 @@
 {
-  "version": 2,
-  "buildCommand": "chmod +x build-script.sh && ./build-script.sh",
-  "ignoreCommand": "exit 0",
+  "framework": "nextjs",
   "cleanUrls": true,
   "trailingSlash": false
 } 
