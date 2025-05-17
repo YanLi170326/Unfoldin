@@ -32,6 +32,8 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const [isiOS, setIsiOS] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [isSecureContext, setIsSecureContext] = useState(true);
+  const [recognitionStartTime, setRecognitionStartTime] = useState<number | null>(null);
+  const [minRecordingDuration] = useState(3000); // Minimum 3 seconds recording time
 
   // 停止麦克风流
   const stopMicrophoneStream = useCallback(() => {
@@ -335,6 +337,9 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     }
 
     setIsListening(true);
+    // Set the start time when we begin listening
+    setRecognitionStartTime(Date.now());
+    
     // FIXED: More explicit handling of standard vs webkit SpeechRecognition
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     
@@ -361,7 +366,10 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       
       recognition.lang = language; 
       recognition.continuous = continuousMode;
-      recognition.interimResults = false;
+      // Set these to true to give more time for recognition to process
+      recognition.interimResults = true;
+      // Increase the max alternatives to improve recognition accuracy
+      recognition.maxAlternatives = 3;
 
       // iOS Safari needs shorter timeouts
       if (isiOS) {
@@ -479,6 +487,31 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       };
 
       recognition.onend = () => {
+        // Check if we've met the minimum recording duration
+        const now = Date.now();
+        const elapsed = recognitionStartTime ? now - recognitionStartTime : 0;
+        console.log(`Speech recognition ended after ${elapsed}ms`);
+        
+        // If we haven't recorded for minimum duration and we're still meant to be listening,
+        // restart the recognition process
+        if (elapsed < minRecordingDuration && isListening) {
+          console.log(`Restarting speech recognition - min duration not met (${elapsed}ms < ${minRecordingDuration}ms)`);
+          try {
+            if (navigator.onLine) {
+              // Add a small delay before restarting to let the previous recognition session fully close
+              setTimeout(() => {
+                if (isListening) { // Double-check we're still supposed to be listening
+                  recognition.start();
+                  console.log('Restarted speech recognition to meet minimum duration');
+                }
+              }, 100);
+              return; // Return here to prevent stopping the microphone
+            }
+          } catch (error) {
+            console.error('Error restarting speech recognition:', error);
+          }
+        }
+        
         // 连续模式下，在onend后重新开始识别
         if (continuousMode && isListening) {
           try {

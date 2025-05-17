@@ -23,6 +23,10 @@ export default function FallbackSpeechInput({
   const [isProcessing, setIsProcessing] = useState(false);
   const recorderRef = useRef<AudioRecorder | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+  const [minRecordingDuration] = useState(3000); // Minimum 3 seconds for better results
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check browser for permission status on mount
   useEffect(() => {
@@ -64,6 +68,21 @@ export default function FallbackSpeechInput({
 
       // Request microphone permissions
       await recorderRef.current.start();
+      
+      // Set the recording start time
+      const startTime = Date.now();
+      setRecordingStartTime(startTime);
+      setRecordingDuration(0);
+      
+      // Start a timer to update the recording duration
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      timerRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        setRecordingDuration(elapsed);
+      }, 100);
       
       setIsRecording(true);
       setIsListening(true);
@@ -133,6 +152,12 @@ export default function FallbackSpeechInput({
 
   // Stop recording and process audio
   const stopRecording = useCallback(async () => {
+    // Clear the duration update timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
     if (!recorderRef.current) {
       setIsRecording(false);
       setIsListening(false);
@@ -140,6 +165,15 @@ export default function FallbackSpeechInput({
     }
 
     try {
+      // Check if we've met the minimum recording time
+      const elapsed = recordingStartTime ? Date.now() - recordingStartTime : 0;
+      console.log(`Recording duration: ${elapsed}ms`);
+      
+      if (elapsed < minRecordingDuration) {
+        toast.warning(`Recording too short (${(elapsed/1000).toFixed(1)}s), please record for at least ${minRecordingDuration/1000}s`);
+        return; // Don't stop recording yet
+      }
+      
       setIsProcessing(true);
       toast.info('Processing speech...');
       
@@ -173,15 +207,23 @@ export default function FallbackSpeechInput({
       setIsRecording(false);
       setIsProcessing(false);
       setIsListening(false);
+      setRecordingDuration(0);
     }
-  }, [onTranscript, autoSubmit, setIsListening, processAudio]);
+  }, [onTranscript, autoSubmit, setIsListening, processAudio, recordingStartTime, minRecordingDuration]);
 
   // Cancel recording
   const cancelRecording = useCallback(() => {
+    // Clear the duration update timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
     if (recorderRef.current) {
       recorderRef.current.cancel();
       setIsRecording(false);
       setIsListening(false);
+      setRecordingDuration(0);
       toast.info('Recording cancelled');
     }
   }, [setIsListening]);
@@ -198,6 +240,15 @@ export default function FallbackSpeechInput({
       startRecording();
     }
   }, [isRecording, startRecording, stopRecording, permissionDenied]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col gap-2">
@@ -221,15 +272,20 @@ export default function FallbackSpeechInput({
       </Button>
       
       {isRecording && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={cancelRecording}
-          title="Cancel recording"
-        >
-          <PauseCircle className="h-4 w-4" />
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={cancelRecording}
+            title="Cancel recording"
+          >
+            <PauseCircle className="h-4 w-4" />
+          </Button>
+          <div className="text-xs text-muted-foreground mt-1">
+            Recording: {(recordingDuration / 1000).toFixed(1)}s
+          </div>
+        </>
       )}
       
       {isProcessing && (
