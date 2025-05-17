@@ -1,35 +1,29 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
-import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import './globals.css';
+import type { Metadata } from 'next';
+import { Toaster } from '@/components/ui/sonner';
+import { AuthChecker } from '@/components/auth/auth-checker';
 
 export const metadata: Metadata = {
-  title: "Unfoldin Demo - Emotion Release Tool",
-  description: "A voice-driven tool for emotional release and personal growth",
+  title: 'Unfoldin - Emotional Release Assistant',
+  description: 'A specialized AI assistant for emotional release based on the Sedona Method',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body>
+        <header className="border-b p-4">
+          <div className="container flex items-center justify-between">
+            <h1 className="text-xl font-bold">Unfoldin</h1>
+            <AuthChecker />
+          </div>
+        </header>
         {children}
-        <Toaster />
+        <Toaster position="top-right" />
       </body>
     </html>
   );

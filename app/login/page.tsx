@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Home } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -14,6 +15,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect') || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,11 +36,14 @@ export default function Login() {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Redirect to dashboard on successful login
-      router.push('/dashboard');
+      toast.success('Login successful');
+      
+      // Redirect to the specified redirect URL or dashboard
+      router.push(redirectUrl);
     } catch (err) {
       console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
+      toast.error(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -93,7 +99,7 @@ export default function Login() {
         <div className="mt-4 text-center">
           <p>
             Don't have an account?{' '}
-            <Link href="/register" className="text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href={`/register${redirectUrl !== '/dashboard' ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`} className="text-blue-600 dark:text-blue-400 hover:underline">
               Create an account
             </Link>
           </p>

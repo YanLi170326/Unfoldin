@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Home } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function Register() {
   const [username, setUsername] = useState('');
@@ -16,6 +17,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect') || '/login';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,12 +39,15 @@ export default function Register() {
       }
 
       setSuccess(true);
-      // Redirect to login page after successful registration
+      toast.success('Account created successfully!');
+      
+      // Redirect to login page with redirect parameter
       setTimeout(() => {
-        router.push('/login');
+        router.push(`/login${redirectUrl !== '/login' ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`);
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
+      toast.error(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setLoading(false);
     }
@@ -103,7 +109,7 @@ export default function Register() {
         <div className="mt-4 text-center">
           <p>
             Already have an account?{' '}
-            <Link href="/login" className="text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href={`/login${redirectUrl !== '/login' ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`} className="text-blue-600 dark:text-blue-400 hover:underline">
               Log in
             </Link>
           </p>
