@@ -217,7 +217,12 @@ Use the knowledge from the reference files to identify emotions and guide the re
       
       // 确保表单有内容并且提交
       if (form.getValues('userMessage').trim()) {
-        form.handleSubmit(onSubmit)();
+        try {
+          form.handleSubmit(onSubmit)();
+        } catch (error) {
+          console.error('处理语音提交时出错:', error);
+          toast.error('提交语音输入失败，请重试');
+        }
       }
     };
 
@@ -251,8 +256,15 @@ Use the knowledge from the reference files to identify emotions and guide the re
 
   // 语音输入处理函数
   const handleSpeechInput = (text: string) => {
-    if (text.trim()) {
-      form.setValue('userMessage', text);
+    if (text && text.trim()) {
+      try {
+        form.setValue('userMessage', text);
+        // Trigger form validation after setting the value
+        form.trigger('userMessage');
+      } catch (error) {
+        console.error('设置语音输入时出错:', error);
+        toast.error('处理语音输入失败，请重试');
+      }
     }
   };
 
