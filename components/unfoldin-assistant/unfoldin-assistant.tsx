@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SpeechInput from './speech-input';
 import FallbackSpeechInput from './fallback-speech-input';
+import SpeechDiagnostics from './speech-diagnostics';
 
 // Knowledge files content
 import sedonaKnowledgeMap from './knowledge/sedona-knowledge-map';
@@ -384,6 +385,8 @@ Use the knowledge from the reference files to identify emotions and guide the re
       </CardHeader>
       
       <CardContent className="space-y-4">
+        <SpeechDiagnostics />
+        
         {/* Optional: Add informational box about using the built-in API */}
         <div className="bg-neutral-50 dark:bg-neutral-900 p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 text-center mb-4">
           <p className="text-sm text-muted-foreground mb-1">

@@ -66,9 +66,17 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       
       setIsSecureContext(isContextSecure);
       
+      // Log diagnostic information
+      console.log('Secure context check:', { 
+        isSecureContext: window.isSecureContext,
+        protocol: window.location.protocol,
+        hostname: window.location.hostname,
+        result: isContextSecure
+      });
+      
       if (!isContextSecure) {
-        console.error('语音识别需要安全上下文 (HTTPS) 才能运行');
-        toast.error('语音识别需要在HTTPS环境下使用，请使用HTTPS访问此网站');
+        console.error('Speech recognition requires a secure context (HTTPS) to work');
+        toast.error('Speech recognition requires HTTPS. Click to switch to HTTPS version.');
       }
     }
   }, []);
@@ -109,9 +117,34 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     setIsiOS(iOS);
   }, []);
 
+  // Function to check exact speech recognition support
+  const checkExactSpeechSupport = useCallback(() => {
+    const diagnosticInfo = {
+      window: typeof window !== 'undefined',
+      speechRecognition: 'SpeechRecognition' in window,
+      webkitSpeechRecognition: 'webkitSpeechRecognition' in window,
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      vendor: navigator.vendor,
+      maxTouchPoints: navigator.maxTouchPoints,
+      language: navigator.language,
+      languages: navigator.languages,
+      mediaDevices: !!navigator.mediaDevices,
+      secureContext: window.isSecureContext,
+      protocol: window.location.protocol,
+      hostname: window.location.hostname
+    };
+    
+    console.log('Speech recognition diagnostic info:', diagnosticInfo);
+    return diagnosticInfo;
+  }, []);
+
   // Check browser support for speech recognition
   useEffect(() => {
     const checkSupportAndPermission = async () => {
+      // Log diagnostic information first
+      const diagnosticInfo = checkExactSpeechSupport();
+      
       // Check if we're in a secure context first
       if (!isSecureContext) {
         setSupported(false);
@@ -121,7 +154,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       // Check if online
       if (!navigator.onLine) {
         setIsOnline(false);
-        toast.error('网络已断开，语音识别功能将不可用');
+        toast.error('Network disconnected. Speech recognition requires internet connection. Please check your network.');
       }
 
       // Check if speech recognition is supported
@@ -129,7 +162,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       setSupported(isSupported);
 
       if (!isSupported) {
-        toast.error('您的浏览器不支持语音识别功能，请使用Chrome, Safari等现代浏览器');
+        toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.');
         return;
       }
 
@@ -143,31 +176,33 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       if (navigator.permissions && navigator.permissions.query) {
         try {
           const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          console.log('Microphone permission status:', permissionStatus.state);
           
           if (permissionStatus.state === 'denied') {
             setPermissionDenied(true);
-            toast.error('麦克风权限被拒绝，请在浏览器设置中启用麦克风权限');
+            toast.error('Microphone permission denied. Please enable it in your browser settings.');
           }
           
           // Listen for permission changes
           permissionStatus.onchange = () => {
+            console.log('Permission status changed to:', permissionStatus.state);
             if (permissionStatus.state === 'denied') {
               setPermissionDenied(true);
               setIsListening(false);
               stopMicrophoneStream();
-              toast.error('麦克风权限被拒绝，请在浏览器设置中启用麦克风权限');
+              toast.error('Microphone permission denied. Please enable it in your browser settings.');
             } else if (permissionStatus.state === 'granted') {
               setPermissionDenied(false);
             }
           };
         } catch (error) {
-          console.log('Permission query not supported, will check on usage');
+          console.log('Permission query not supported, will check on usage', error);
         }
       }
     };
     
     checkSupportAndPermission();
-  }, [setIsListening, stopMicrophoneStream, isSecureContext]);
+  }, [setIsListening, stopMicrophoneStream, isSecureContext, checkExactSpeechSupport]);
 
   // Function to check network connectivity
   const checkNetworkConnection = useCallback(() => {
@@ -290,26 +325,42 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     
     if (!SpeechRecognitionAPI) {
-      toast.error('您的浏览器不支持语音识别功能，请使用Chrome, Safari等现代浏览器');
+      console.error('Speech Recognition API not available despite earlier check');
+      toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.');
       setIsListening(false);
       return;
     }
 
     try {
+      console.log('Creating speech recognition instance');
       const recognition = new SpeechRecognitionAPI();
       setRecognitionInstance(recognition);
       
-      recognition.lang = language; // 使用当前选择的语言
-      recognition.continuous = continuousMode; // 连续模式下启用持续识别
+      // Log the recognition instance
+      console.log('Recognition instance created:', !!recognition);
+      
+      recognition.lang = language; 
+      recognition.continuous = continuousMode;
       recognition.interimResults = false;
 
       // iOS Safari needs shorter timeouts
       if (isiOS) {
-        // Apple's implementation might have different requirements
-        // iOS Safari has different timeout behavior
-        // Adjust as needed based on testing
         recognition.interimResults = true; // Try this for iOS
+        console.log('iOS detected, setting interimResults to true');
       }
+
+      // Add all event listeners with error handling
+      recognition.onstart = (event: Event) => {
+        console.log('Speech recognition started successfully', event);
+      };
+
+      // Add diagnostic event handlers
+      recognition.onaudiostart = () => console.log('Audio capturing started');
+      recognition.onsoundstart = () => console.log('Sound detected');
+      recognition.onspeechstart = () => console.log('Speech detected');
+      recognition.onspeechend = () => console.log('Speech ended');
+      recognition.onsoundend = () => console.log('Sound ended');
+      recognition.onaudioend = () => console.log('Audio capturing ended');
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         try {
@@ -447,32 +498,32 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           throw new Error('Network offline');
         }
         
-        // iOS Safari requires speech recognition to be started from a user interaction
-        // We're already within a user interaction here when the button is clicked
+        console.log('Starting speech recognition...');
         recognition.start();
+        console.log('Speech recognition started');
         
         toast.info(`Starting ${language === 'zh-CN' ? 'Chinese' : 'English'} speech recognition, please speak...`);
         
         if (isiOS) {
-          toast.info('iOS设备需要允许麦克风权限，并需要说话时声音足够大');
+          toast.info('iOS devices require microphone permission and loud enough speech');
         }
         
         if (continuousMode) {
-          toast.info('连续对话模式已启用，语音识别会自动继续');
+          toast.info('Continuous dialog mode enabled - Speech recognition will continue');
         }
       } catch (error) {
-        console.error('启动语音识别时出错:', error);
+        console.error('Error starting speech recognition:', error);
         
         // Handle network offline error
         if (error instanceof Error && error.message === 'Network offline') {
           setIsOnline(false);
-          toast.error('网络错误，语音识别需要互联网连接。请检查您的网络设置。');
+          toast.error('Network error. Speech recognition requires internet connection. Please check your network settings.');
         }
         // Special handling for iOS "already running" error
         else if (error instanceof DOMException && 
             error.name === 'InvalidStateError' && 
             isiOS) {
-          toast.error('iOS语音识别已在运行，请先停止当前识别');
+          toast.error('iOS speech recognition already running. Please stop current recognition first');
           // Try to recover by stopping any existing session
           try {
             recognition.stop();
@@ -482,18 +533,18 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
               }
             }, 500);
           } catch (e) {
-            console.error('无法恢复语音识别', e);
+            console.error('Could not recover speech recognition', e);
           }
         } else {
-          toast.error('无法启动语音识别，请刷新页面重试');
+          toast.error('Could not start speech recognition. Please refresh the page and try again');
         }
         
         setIsListening(false);
         stopMicrophoneStream();
       }
     } catch (error) {
-      console.error('创建语音识别实例时出错:', error);
-      toast.error('无法启动语音识别');
+      console.error('Error creating speech recognition instance:', error);
+      toast.error('Could not initialize speech recognition');
       setIsListening(false);
       stopMicrophoneStream();
     }
