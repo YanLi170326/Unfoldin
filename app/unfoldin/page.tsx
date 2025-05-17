@@ -21,7 +21,7 @@ export default async function UnfoldinPage() {
     <div className="container py-8">
       <h1 className="text-3xl font-bold mb-6 text-center">Unfoldin Emotional Release Assistant</h1>
       <p className="text-center mb-8 text-muted-foreground">
-        A guided emotional release experience
+        A guided emotional release conversation
       </p>
       
       <div className="my-8">

@@ -1,4 +1,4 @@
-import { EmotionReleaseFlow } from '@/components/emotion-release/emotion-release-flow';
+import { UnfoldinAssistant } from '@/components/unfoldin-assistant';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
@@ -15,7 +15,7 @@ export default function DashboardPage() {
         </header>
         
         <main>
-          <EmotionReleaseFlow />
+          <UnfoldinAssistant />
           
           <div className="mt-8 max-w-lg mx-auto text-center">
             <div className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">

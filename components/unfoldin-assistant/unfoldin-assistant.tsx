@@ -366,7 +366,7 @@ Use it to:
           <div>
             <CardTitle>Unfoldin Emotional Release Assistant</CardTitle>
             <CardDescription>
-              A guided emotional release experience
+              A guided emotional release chat
               {model === "gpt-3.5-turbo" && <span className="ml-2 text-yellow-500">(使用 GPT-3.5 模型)</span>}
             </CardDescription>
           </div>
@@ -391,7 +391,7 @@ Use it to:
         {/* Optional: Add informational box about using the built-in API */}
         <div className="bg-neutral-50 dark:bg-neutral-900 p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 text-center mb-4">
           <p className="text-sm text-muted-foreground mb-1">
-            This assistant helps you identify, feel, and release emotions through a structured process.
+            Chat with this assistant to identify, feel, and release emotions through a guided conversation.
           </p>
         </div>
 
