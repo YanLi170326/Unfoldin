@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { atom, useAtom } from 'jotai';
 import { toast } from 'sonner';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Repeat, RotateCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SpeechInput from './speech-input';
+import FallbackSpeechInput from './fallback-speech-input';
 
 // Knowledge files content
 import sedonaKnowledgeMap from './knowledge/sedona-knowledge-map';
@@ -46,6 +47,8 @@ export default function UnfoldinAssistant() {
   const [isSpeaking, setIsSpeaking] = useAtom(isSpeakingAtom);
   const [model, setModel] = useAtom(modelAtom);
   const [autoListenAfterResponse, setAutoListenAfterResponse] = useState(false);
+  const [webSpeechSupported, setWebSpeechSupported] = useState<boolean | null>(null);
+  const [useFallbackSpeech, setUseFallbackSpeech] = useState(false);
   
   // Unfoldin GPT System Prompt
   const systemPrompt = `# Unfoldin Emotional Release Conversation Guide
@@ -254,19 +257,37 @@ Use the knowledge from the reference files to identify emotions and guide the re
     toast.success('Conversation cleared');
   };
 
-  // 语音输入处理函数
-  const handleSpeechInput = (text: string) => {
-    if (text && text.trim()) {
-      try {
-        form.setValue('userMessage', text);
-        // Trigger form validation after setting the value
-        form.trigger('userMessage');
-      } catch (error) {
-        console.error('设置语音输入时出错:', error);
-        toast.error('处理语音输入失败，请重试');
-      }
-    }
-  };
+  // Check for Web Speech API support
+  useEffect(() => {
+    const checkSpeechSupport = () => {
+      const isSecureContext = window.isSecureContext || 
+                             window.location.protocol === 'https:' || 
+                             window.location.hostname === 'localhost' ||
+                             window.location.hostname === '127.0.0.1';
+                             
+      const isSpeechRecognitionSupported = 
+        'SpeechRecognition' in window || 
+        'webkitSpeechRecognition' in window;
+      
+      // Speech Recognition is supported only if both secure context and browser API support
+      setWebSpeechSupported(isSecureContext && isSpeechRecognitionSupported);
+    };
+    
+    checkSpeechSupport();
+  }, []);
+
+  // Toggle between Web Speech API and Fallback method
+  const toggleSpeechInputMethod = useCallback(() => {
+    setUseFallbackSpeech(prev => !prev);
+    toast.info(useFallbackSpeech 
+      ? '已切换到浏览器语音识别 (WebSpeech API)' 
+      : '已切换到API语音识别 (OpenAI Whisper)');
+  }, [useFallbackSpeech]);
+
+  // 语音输入内容更新
+  const handleSpeechInput = useCallback((text: string) => {
+    form.setValue('userMessage', text);
+  }, [form]);
 
   // 切换自动持续对话模式
   const toggleAutoContinue = () => {
@@ -439,12 +460,42 @@ Use the knowledge from the reference files to identify emotions and guide the re
                       />
                     </FormControl>
                     <div className="flex flex-col gap-2 pt-2">
-                      <SpeechInput 
-                        onTranscript={handleSpeechInput}
-                        isListening={isListening}
-                        setIsListening={setIsListening}
-                        autoSubmit={true} // 启用自动提交功能
-                      />
+                      <div className="flex items-center space-x-2">
+                        {webSpeechSupported !== null && (
+                          <>
+                            {useFallbackSpeech || !webSpeechSupported ? (
+                              <FallbackSpeechInput 
+                                onTranscript={handleSpeechInput}
+                                isListening={isListening}
+                                setIsListening={setIsListening}
+                                autoSubmit={true}
+                              />
+                            ) : (
+                              <SpeechInput 
+                                onTranscript={handleSpeechInput}
+                                isListening={isListening}
+                                setIsListening={setIsListening}
+                                autoSubmit={true}
+                              />
+                            )}
+                            
+                            {webSpeechSupported && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={toggleSpeechInputMethod}
+                                title={useFallbackSpeech 
+                                  ? "切换到浏览器语音识别" 
+                                  : "切换到API语音识别"
+                                }
+                              >
+                                <RotateCw className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <FormMessage />

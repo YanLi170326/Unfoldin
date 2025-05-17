@@ -31,6 +31,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isiOS, setIsiOS] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const [isSecureContext, setIsSecureContext] = useState(true);
 
   // 停止麦克风流
   const stopMicrophoneStream = useCallback(() => {
@@ -53,6 +54,24 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       }
     }
   }, [recognitionInstance, stopMicrophoneStream, setIsListening]);
+
+  // Check if we're in a secure context (HTTPS or localhost)
+  useEffect(() => {
+    // Check if window.isSecureContext is available and is true
+    if (typeof window !== 'undefined') {
+      const isContextSecure = window.isSecureContext || 
+                             window.location.protocol === 'https:' || 
+                             window.location.hostname === 'localhost' ||
+                             window.location.hostname === '127.0.0.1';
+      
+      setIsSecureContext(isContextSecure);
+      
+      if (!isContextSecure) {
+        console.error('语音识别需要安全上下文 (HTTPS) 才能运行');
+        toast.error('语音识别需要在HTTPS环境下使用，请使用HTTPS访问此网站');
+      }
+    }
+  }, []);
 
   // Check online status
   useEffect(() => {
@@ -93,6 +112,12 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   // Check browser support for speech recognition
   useEffect(() => {
     const checkSupportAndPermission = async () => {
+      // Check if we're in a secure context first
+      if (!isSecureContext) {
+        setSupported(false);
+        return;
+      }
+
       // Check if online
       if (!navigator.onLine) {
         setIsOnline(false);
@@ -142,7 +167,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     };
     
     checkSupportAndPermission();
-  }, [setIsListening, stopMicrophoneStream]);
+  }, [setIsListening, stopMicrophoneStream, isSecureContext]);
 
   // Function to check network connectivity
   const checkNetworkConnection = useCallback(() => {
@@ -175,6 +200,12 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   };
 
   const toggleListening = useCallback(() => {
+    // First check if we're in a secure context
+    if (!isSecureContext) {
+      toast.error('语音识别需要在HTTPS环境下使用，请使用HTTPS访问此网站');
+      return;
+    }
+
     if (!supported) {
       toast.error('您的浏览器不支持语音识别功能，请使用Chrome, Safari等现代浏览器');
       return;
@@ -206,7 +237,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     } else {
       requestMicrophonePermission();
     }
-  }, [supported, permissionDenied, isListening, stopMicrophoneStream, isOnline, checkNetworkConnection]);
+  }, [supported, permissionDenied, isListening, stopMicrophoneStream, isOnline, checkNetworkConnection, isSecureContext]);
 
   // 切换连续对话模式
   const toggleContinuousMode = () => {
@@ -495,6 +526,28 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           <Mic className="h-4 w-4" />
         </Button>
       </>
+    );
+  }
+
+  // Show not secure context warning
+  if (!isSecureContext) {
+    return (
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon"
+        onClick={() => {
+          const httpsUrl = window.location.href.replace('http://', 'https://');
+          toast.error('语音识别需要HTTPS环境，点击切换到HTTPS版本');
+          // Prompt user to redirect to HTTPS version
+          if (confirm('语音识别需要在HTTPS环境下使用，是否切换到HTTPS版本？')) {
+            window.location.href = httpsUrl;
+          }
+        }}
+        title="需要HTTPS环境"
+      >
+        <Mic className="h-4 w-4" />
+      </Button>
     );
   }
 
