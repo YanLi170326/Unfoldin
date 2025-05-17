@@ -30,6 +30,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isiOS, setIsiOS] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   // 停止麦克风流
   const stopMicrophoneStream = useCallback(() => {
@@ -38,6 +39,48 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       setAudioStream(null);
     }
   }, [audioStream]);
+
+  // Define stopListening early to avoid linter errors
+  const stopListening = useCallback(() => {
+    setIsListening(false);
+    stopMicrophoneStream();
+    
+    if (recognitionInstance) {
+      try {
+        recognitionInstance.stop();
+      } catch (error) {
+        console.error('停止语音识别时出错:', error);
+      }
+    }
+  }, [recognitionInstance, stopMicrophoneStream, setIsListening]);
+
+  // Check online status
+  useEffect(() => {
+    // Initialize with current online status
+    setIsOnline(navigator.onLine);
+    
+    // Add event listeners for online/offline events
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success('网络已连接，语音识别功能已恢复');
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.error('网络已断开，语音识别功能将不可用');
+      if (isListening) {
+        stopListening();
+      }
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isListening, stopListening]);
 
   // Check iOS
   useEffect(() => {
@@ -50,6 +93,12 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   // Check browser support for speech recognition
   useEffect(() => {
     const checkSupportAndPermission = async () => {
+      // Check if online
+      if (!navigator.onLine) {
+        setIsOnline(false);
+        toast.error('网络已断开，语音识别功能将不可用');
+      }
+
       // Check if speech recognition is supported
       const isSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
       setSupported(isSupported);
@@ -95,19 +144,30 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     checkSupportAndPermission();
   }, [setIsListening, stopMicrophoneStream]);
 
-  // 清理函数，确保在组件卸载时停止语音识别
-  useEffect(() => {
-    return () => {
-      stopMicrophoneStream();
-      if (recognitionInstance) {
-        try {
-          recognitionInstance.stop();
-        } catch (error) {
-          console.error('停止语音识别时出错:', error);
-        }
-      }
-    };
-  }, [recognitionInstance, stopMicrophoneStream]);
+  // Function to check network connectivity
+  const checkNetworkConnection = useCallback(() => {
+    // Ping a reliable server to check if the network is truly accessible
+    return new Promise<boolean>((resolve) => {
+      // Use a timeout to ensure we don't wait too long
+      const timeoutId = setTimeout(() => {
+        resolve(false);
+      }, 5000);
+      
+      // Try to fetch a small resource
+      fetch('https://www.google.com/generate_204', { 
+        mode: 'no-cors',
+        cache: 'no-store'
+      })
+        .then(() => {
+          clearTimeout(timeoutId);
+          resolve(true);
+        })
+        .catch(() => {
+          clearTimeout(timeoutId);
+          resolve(false);
+        });
+    });
+  }, []);
 
   const toggleLanguage = () => {
     setLanguage(prev => prev === 'zh-CN' ? 'en-US' : 'zh-CN');
@@ -125,12 +185,28 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       return;
     }
 
+    if (!isOnline) {
+      // Double-check network connection before showing error
+      checkNetworkConnection().then(online => {
+        if (online) {
+          // We're actually online, just navigator.onLine was wrong
+          setIsOnline(true);
+          if (!isListening) {
+            requestMicrophonePermission();
+          }
+        } else {
+          toast.error('网络错误，请检查您的网络连接后重试。语音识别需要互联网连接。');
+        }
+      });
+      return;
+    }
+
     if (isListening) {
       stopListening();
     } else {
       requestMicrophonePermission();
     }
-  }, [supported, permissionDenied, isListening, stopMicrophoneStream]);
+  }, [supported, permissionDenied, isListening, stopMicrophoneStream, isOnline, checkNetworkConnection]);
 
   // 切换连续对话模式
   const toggleContinuousMode = () => {
@@ -171,6 +247,14 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   };
 
   const startListening = (stream?: MediaStream) => {
+    // Check if we're online before starting
+    if (!navigator.onLine) {
+      toast.error('网络已断开，语音识别功能将不可用，请检查您的网络连接');
+      setIsListening(false);
+      stopMicrophoneStream();
+      return;
+    }
+
     setIsListening(true);
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     
@@ -233,7 +317,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       };
 
       recognition.onerror = (event: SpeechRecognitionError) => {
-        console.error('语音识别错误:', event.error);
+        console.error('语音识别错误:', event.error, event);
         
         // Provide more specific error messages based on the error type
         switch(event.error) {
@@ -247,7 +331,23 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
             toast.error('无法捕获音频，请检查麦克风设备');
             break;
           case 'network':
-            toast.error('网络错误，请检查您的网络连接');
+            // Mark as offline and show detailed error
+            setIsOnline(false);
+            toast.error('网络错误，语音识别需要稳定的网络连接。请检查您的网络连接后重试。');
+            // Try to recover network status after a delay
+            setTimeout(() => {
+              checkNetworkConnection().then(online => {
+                setIsOnline(online);
+                if (online && isListening) {
+                  toast.info('网络已恢复，正在重新启动语音识别...');
+                  try {
+                    recognition.start();
+                  } catch (e) {
+                    console.error('重启语音识别失败:', e);
+                  }
+                }
+              });
+            }, 3000);
             break;
           case 'not-allowed':
           case 'service-not-allowed':
@@ -261,7 +361,13 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
             toast.error(`当前语言 (${language}) 不受支持，请尝试其他语言`);
             break;
           default:
-            toast.error(`语音识别失败: ${event.error}`);
+            // Check if it might be a network issue even though not reported as such
+            if (!navigator.onLine) {
+              setIsOnline(false);
+              toast.error('网络错误，语音识别需要互联网连接。请检查您的网络设置。');
+            } else {
+              toast.error(`语音识别失败: ${event.error}`);
+            }
         }
         
         if (!continuousMode) {
@@ -274,10 +380,19 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         // 连续模式下，在onend后重新开始识别
         if (continuousMode && isListening) {
           try {
-            // Add a small delay before restarting
-            setTimeout(() => {
-              recognition.start();
-            }, 100);
+            // Check network status before restarting
+            if (navigator.onLine) {
+              // Add a small delay before restarting
+              setTimeout(() => {
+                if (isListening) { // Double-check we're still supposed to be listening
+                  recognition.start();
+                }
+              }, 100);
+            } else {
+              toast.error('网络已断开，语音识别已停止。请检查网络连接后重试。');
+              setIsListening(false);
+              stopMicrophoneStream();
+            }
           } catch (error) {
             console.error('重启语音识别失败:', error);
             setIsListening(false);
@@ -296,6 +411,11 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
 
       // Start recognition with a try-catch to handle any errors
       try {
+        // Check network again right before starting
+        if (!navigator.onLine) {
+          throw new Error('Network offline');
+        }
+        
         // iOS Safari requires speech recognition to be started from a user interaction
         // We're already within a user interaction here when the button is clicked
         recognition.start();
@@ -312,8 +432,13 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       } catch (error) {
         console.error('启动语音识别时出错:', error);
         
+        // Handle network offline error
+        if (error instanceof Error && error.message === 'Network offline') {
+          setIsOnline(false);
+          toast.error('网络错误，语音识别需要互联网连接。请检查您的网络设置。');
+        }
         // Special handling for iOS "already running" error
-        if (error instanceof DOMException && 
+        else if (error instanceof DOMException && 
             error.name === 'InvalidStateError' && 
             isiOS) {
           toast.error('iOS语音识别已在运行，请先停止当前识别');
@@ -343,17 +468,18 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     }
   };
 
-  const stopListening = useCallback(() => {
-    setIsListening(false);
-    stopMicrophoneStream();
-    
-    if (recognitionInstance) {
-      try {
-        recognitionInstance.stop();
-      } catch (error) {
-        console.error('停止语音识别时出错:', error);
+  // 清理函数，确保在组件卸载时停止语音识别
+  useEffect(() => {
+    return () => {
+      stopMicrophoneStream();
+      if (recognitionInstance) {
+        try {
+          recognitionInstance.stop();
+        } catch (error) {
+          console.error('停止语音识别时出错:', error);
+        }
       }
-    }
+    };
   }, [recognitionInstance, stopMicrophoneStream]);
 
   // Show loading state while checking support
@@ -384,6 +510,53 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       >
         <Mic className="h-4 w-4 text-muted-foreground" />
       </Button>
+    );
+  }
+
+  // If offline, show button with network error on hover
+  if (!isOnline) {
+    return (
+      <>
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon"
+          onClick={() => {
+            // On click, check if network is actually available
+            checkNetworkConnection().then(online => {
+              if (online) {
+                setIsOnline(true);
+                toast.success('网络已恢复，语音识别功能已可用');
+              } else {
+                toast.error('网络仍然不可用，语音识别需要互联网连接');
+              }
+            });
+          }}
+          title="网络错误，点击重试"
+        >
+          <Mic className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          type="button"
+          variant={continuousMode ? "default" : "outline"}
+          size="icon"
+          onClick={toggleContinuousMode}
+          title={continuousMode ? "关闭连续对话模式" : "开启连续对话模式"}
+        >
+          <MessageCircle className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={toggleLanguage}
+          title={`切换为${language === 'zh-CN' ? '英文' : '中文'}识别`}
+        >
+          <Globe className="h-4 w-4" />
+        </Button>
+      </>
     );
   }
 
