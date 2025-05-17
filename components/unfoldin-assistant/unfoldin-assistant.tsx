@@ -64,7 +64,7 @@ Your goal is to guide users through emotional release in a conversational way th
 
 3. **No Analysis**: Don't analyze, interpret, or explain the user's experience. Simply acknowledge and guide.
 
-4. **Bilingual Support**: Respond in English or Chinese, matching the user's language preference.
+4. **Language Selection**: DEFAULT TO ENGLISH for all responses unless the user explicitly writes in Chinese. If the user writes in Chinese, respond in Chinese. Always match the user's language choice.
 
 5. **Release Framework**: Guide conversations toward emotional release using the Sedona Method framework, but do so naturally without rigid adherence to scripts.
 
@@ -150,7 +150,7 @@ Use the knowledge from the reference files to identify emotions and guide the re
         if (errorData.error?.message?.includes("exceeded your current quota") && model === "gpt-4o") {
           // Downgrade to gpt-3.5-turbo
           setModel("gpt-3.5-turbo");
-          toast.warning("切换到 GPT-3.5 模型 (API 配额超出)");
+          toast.warning("Switching to GPT-3.5 model (API quota exceeded)");
           
           // Retry with gpt-3.5-turbo
           const fallbackResponse = await fetch('/api/openai/assistant', {
@@ -280,8 +280,8 @@ Use the knowledge from the reference files to identify emotions and guide the re
   const toggleSpeechInputMethod = useCallback(() => {
     setUseFallbackSpeech(prev => !prev);
     toast.info(useFallbackSpeech 
-      ? '已切换到浏览器语音识别 (WebSpeech API)' 
-      : '已切换到API语音识别 (OpenAI Whisper)');
+      ? 'Switched to browser speech recognition (WebSpeech API)' 
+      : 'Switched to API-based speech recognition (OpenAI Whisper)');
   }, [useFallbackSpeech]);
 
   // 语音输入内容更新
@@ -292,10 +292,7 @@ Use the knowledge from the reference files to identify emotions and guide the re
   // 切换自动持续对话模式
   const toggleAutoContinue = () => {
     setAutoListenAfterResponse(!autoListenAfterResponse);
-    toast.info(autoListenAfterResponse 
-      ? '已关闭自动持续对话' 
-      : '已开启自动持续对话'
-    );
+    toast.info(autoListenAfterResponse ? 'Auto-dialog enabled' : 'Auto-dialog disabled');
   };
 
   // 文字转语音功能
@@ -355,7 +352,7 @@ Use the knowledge from the reference files to identify emotions and guide the re
   // 切换模型
   const handleModelChange = (newModel: "gpt-4o" | "gpt-3.5-turbo") => {
     setModel(newModel);
-    toast.info(`已切换至 ${newModel === "gpt-4o" ? "GPT-4o" : "GPT-3.5-turbo"} 模型`);
+    toast.info(`Switched to ${newModel === "gpt-4o" ? "GPT-4o" : "GPT-3.5-turbo"} model`);
   };
 
   return (
@@ -366,7 +363,7 @@ Use the knowledge from the reference files to identify emotions and guide the re
             <CardTitle>Unfoldin Emotional Release Assistant</CardTitle>
             <CardDescription>
               A guided emotional release chat
-              {model === "gpt-3.5-turbo" && <span className="ml-2 text-yellow-500">(使用 GPT-3.5 模型)</span>}
+              {model === "gpt-3.5-turbo" && <span className="ml-2 text-yellow-500">(Using GPT-3.5 model)</span>}
             </CardDescription>
           </div>
           <div className="w-40">
@@ -448,7 +445,7 @@ Use the knowledge from the reference files to identify emotions and guide the re
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                       </svg>
-                      {autoListenAfterResponse ? '连续对话开启' : '连续对话关闭'}
+                      {autoListenAfterResponse ? 'Auto-dialog enabled' : 'Auto-dialog disabled'}
                     </Button>
                   </FormLabel>
                   <div className="flex items-start gap-2">
@@ -522,9 +519,9 @@ Use the knowledge from the reference files to identify emotions and guide the re
                   type="button"
                   variant="destructive"
                   onClick={stopSpeaking}
-                  title="停止朗读"
+                  title="Stop reading"
                 >
-                  停止朗读
+                  Stop Reading
                 </Button>
               )}
             </div>

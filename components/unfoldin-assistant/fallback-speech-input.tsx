@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, PauseCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { AudioRecorder } from '@/lib/voice';
+import { AudioRecorder, transcribeAudio } from '@/lib/voice';
 
 interface FallbackSpeechInputProps {
   onTranscript: (text: string) => void;
@@ -22,6 +22,37 @@ export default function FallbackSpeechInput({
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const recorderRef = useRef<AudioRecorder | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+
+  // Check browser for permission status on mount
+  useEffect(() => {
+    const checkPermission = async () => {
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          if (result.state === 'denied') {
+            setPermissionDenied(true);
+          }
+          
+          // Listen for permission changes
+          result.onchange = () => {
+            setPermissionDenied(result.state === 'denied');
+          };
+        } catch (error) {
+          console.log('Permission check not supported');
+        }
+      }
+    };
+    
+    checkPermission();
+  }, []);
+
+  // Update parent component's isListening state when our state changes
+  useEffect(() => {
+    if (!isRecording && isListening) {
+      setIsListening(false);
+    }
+  }, [isRecording, isListening, setIsListening]);
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -37,20 +68,58 @@ export default function FallbackSpeechInput({
       setIsRecording(true);
       setIsListening(true);
       
-      toast.info('正在录音，说话后点击停止按钮...');
+      toast.info('Recording... Click the button again to stop and process speech.');
     } catch (error) {
       console.error('Failed to start recording:', error);
       
-      if (error instanceof Error && error.name === 'NotAllowedError') {
-        toast.error('麦克风权限被拒绝，请在浏览器设置中启用麦克风权限');
+      if (error instanceof Error && (error.name === 'NotAllowedError' || error.message.includes('permission'))) {
+        setPermissionDenied(true);
+        toast.error('Microphone permission denied. Please enable it in your browser settings.');
       } else {
-        toast.error('无法启动录音，请检查您的麦克风设置');
+        toast.error('Could not start recording. Please check your microphone.');
       }
       
       setIsRecording(false);
       setIsListening(false);
     }
   }, [setIsListening]);
+
+  // Process audio using either the API or direct client-side approach
+  const processAudio = useCallback(async (audioBlob: Blob) => {
+    try {
+      // Try client-side processing first using the imported function
+      try {
+        const text = await transcribeAudio(audioBlob);
+        return text;
+      } catch (clientError) {
+        console.error('Client-side processing failed, falling back to API:', clientError);
+        
+        // Fall back to API if client-side fails
+        const formData = new FormData();
+        formData.append('audio', audioBlob);
+        
+        const response = await fetch('/api/openai/whisper', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || `Server responded with ${response.status}`);
+        }
+        
+        const data = await response.json();
+        if (!data.text) {
+          throw new Error('No transcription returned');
+        }
+        
+        return data.text;
+      }
+    } catch (error) {
+      console.error('Error processing audio:', error);
+      throw error;
+    }
+  }, []);
 
   // Stop recording and process audio
   const stopRecording = useCallback(async () => {
@@ -62,47 +131,29 @@ export default function FallbackSpeechInput({
 
     try {
       setIsProcessing(true);
-      toast.info('正在处理语音...');
+      toast.info('Processing speech...');
       
       // Stop recording and get the audio blob
       const audioBlob = await recorderRef.current.stop();
       
-      // Create a FormData object to send to our API
-      const formData = new FormData();
-      formData.append('audio', audioBlob);
+      // Process the audio
+      const transcript = await processAudio(audioBlob);
       
-      // Send to our API endpoint
-      const response = await fetch('/api/openai/whisper', {
-        method: 'POST',
-        body: formData,
-      });
+      // Update the transcript
+      onTranscript(transcript);
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        const errorMessage = data.error || `Server responded with ${response.status}`;
-        throw new Error(errorMessage);
+      // Automatically submit if enabled
+      if (autoSubmit) {
+        const event = new CustomEvent('speech-submit', { detail: { transcript } });
+        document.dispatchEvent(event);
       }
       
-      if (data.text) {
-        // Update the transcript
-        onTranscript(data.text);
-        
-        // Automatically submit if enabled
-        if (autoSubmit) {
-          const event = new CustomEvent('speech-submit', { detail: { transcript: data.text } });
-          document.dispatchEvent(event);
-        }
-        
-        toast.success('语音识别成功');
-      } else {
-        toast.error('未能识别到语音内容，请重试');
-      }
+      toast.success('Speech recognition successful');
     } catch (error) {
       console.error('Error processing audio:', error);
       
       // Extract useful error message
-      let errorMessage = '处理语音时出错，请重试';
+      let errorMessage = 'Failed to process speech. Please try again.';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
@@ -113,7 +164,7 @@ export default function FallbackSpeechInput({
       setIsProcessing(false);
       setIsListening(false);
     }
-  }, [onTranscript, autoSubmit, setIsListening]);
+  }, [onTranscript, autoSubmit, setIsListening, processAudio]);
 
   // Cancel recording
   const cancelRecording = useCallback(() => {
@@ -121,7 +172,7 @@ export default function FallbackSpeechInput({
       recorderRef.current.cancel();
       setIsRecording(false);
       setIsListening(false);
-      toast.info('录音已取消');
+      toast.info('Recording cancelled');
     }
   }, [setIsListening]);
 
@@ -130,24 +181,30 @@ export default function FallbackSpeechInput({
     if (isRecording) {
       stopRecording();
     } else {
+      if (permissionDenied) {
+        toast.error('Microphone permission denied. Please enable it in your browser settings and reload the page.');
+        return;
+      }
       startRecording();
     }
-  }, [isRecording, startRecording, stopRecording]);
+  }, [isRecording, startRecording, stopRecording, permissionDenied]);
 
   return (
     <div className="flex flex-col gap-2">
       <Button
         type="button"
-        variant={isRecording ? "destructive" : isProcessing ? "secondary" : "outline"}
+        variant={isRecording ? "destructive" : isProcessing ? "secondary" : permissionDenied ? "secondary" : "outline"}
         size="icon"
         onClick={toggleRecording}
         disabled={isProcessing}
         title={
-          isRecording 
-            ? "点击停止录音并识别" 
-            : isProcessing 
-              ? "正在处理语音..." 
-              : "开始语音录制 (API方式)"
+          permissionDenied
+            ? "Microphone permission denied"
+            : isRecording 
+              ? "Click to stop recording and process" 
+              : isProcessing 
+                ? "Processing speech..." 
+                : "Start voice recording (API method)"
         }
       >
         {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -159,7 +216,7 @@ export default function FallbackSpeechInput({
           variant="ghost"
           size="icon"
           onClick={cancelRecording}
-          title="取消录音"
+          title="Cancel recording"
         >
           <PauseCircle className="h-4 w-4" />
         </Button>
@@ -167,7 +224,7 @@ export default function FallbackSpeechInput({
       
       {isProcessing && (
         <div className="text-xs text-muted-foreground mt-1">
-          正在处理语音...
+          Processing speech...
         </div>
       )}
     </div>

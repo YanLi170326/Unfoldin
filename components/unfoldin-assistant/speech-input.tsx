@@ -196,7 +196,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
 
   const toggleLanguage = () => {
     setLanguage(prev => prev === 'zh-CN' ? 'en-US' : 'zh-CN');
-    toast.info(`语音识别语言已切换为${language === 'zh-CN' ? '英文' : '中文'}`);
+    toast.info(`Speech recognition language changed to ${language === 'zh-CN' ? 'English' : 'Chinese'}`);
   };
 
   const toggleListening = useCallback(() => {
@@ -243,8 +243,8 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const toggleContinuousMode = () => {
     setContinuousMode(!continuousMode);
     toast.info(continuousMode 
-      ? '已关闭连续对话模式' 
-      : '已开启连续对话模式 - 语音识别后将自动提交'
+      ? 'Continuous dialog mode disabled' 
+      : 'Continuous dialog mode enabled - Speech recognition will auto-submit'
     );
   };
 
@@ -259,18 +259,18 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       // 获取到权限后开始语音识别
       startListening(stream);
     } catch (error: any) {
-      console.error('获取麦克风权限失败:', error);
+      console.error('Failed to get microphone permission:', error);
       
       // Handle specific error types
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         setPermissionDenied(true);
-        toast.error('麦克风权限被拒绝，请在浏览器设置中启用麦克风权限');
+        toast.error('Microphone permission denied. Please enable it in your browser settings.');
       } else if (error.name === 'NotFoundError') {
-        toast.error('找不到麦克风设备，请检查您的设备');
+        toast.error('No microphone found. Please check your device.');
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        toast.error('麦克风被其他应用程序占用，请关闭其他使用麦克风的应用');
+        toast.error('Microphone is being used by another application. Please close other apps using the microphone.');
       } else {
-        toast.error('无法访问麦克风，请确保已授予麦克风权限');
+        toast.error('Cannot access microphone. Please ensure microphone permissions are granted.');
       }
       
       setIsListening(false);
@@ -280,7 +280,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const startListening = (stream?: MediaStream) => {
     // Check if we're online before starting
     if (!navigator.onLine) {
-      toast.error('网络已断开，语音识别功能将不可用，请检查您的网络连接');
+      toast.error('Network disconnected. Speech recognition requires internet connection. Please check your network.');
       setIsListening(false);
       stopMicrophoneStream();
       return;
@@ -330,16 +330,16 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
                 stopMicrophoneStream();
               }
               
-              toast.success(`语音识别成功 (${language === 'zh-CN' ? '中文' : '英文'})`);
+              toast.success(`Speech recognition successful (${language === 'zh-CN' ? 'Chinese' : 'English'})`);
             } else {
-              toast.warning('未能识别到语音内容，请重试');
+              toast.warning('No speech detected, please try again');
             }
           } else {
-            toast.warning('未能识别到语音内容，请重试');
+            toast.warning('No speech detected, please try again');
           }
         } catch (error) {
-          console.error('处理语音识别结果时出错:', error);
-          toast.error('处理语音识别结果时出错，请重试');
+          console.error('Error processing speech recognition result:', error);
+          toast.error('Error processing speech recognition result, please try again');
         }
         
         if (!continuousMode) {
@@ -348,33 +348,33 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       };
 
       recognition.onerror = (event: SpeechRecognitionError) => {
-        console.error('语音识别错误:', event.error, event);
+        console.error('Speech recognition error:', event.error, event);
         
         // Provide more specific error messages based on the error type
         switch(event.error) {
           case 'no-speech':
-            toast.warning('未检测到语音，请确保您正在说话并且麦克风工作正常');
+            toast.warning('No speech detected. Please ensure your microphone is working and speak clearly.');
             break;
           case 'aborted':
-            toast.info('语音识别已取消');
+            toast.info('Speech recognition cancelled');
             break;
           case 'audio-capture':
-            toast.error('无法捕获音频，请检查麦克风设备');
+            toast.error('Cannot capture audio. Please check your microphone.');
             break;
           case 'network':
             // Mark as offline and show detailed error
             setIsOnline(false);
-            toast.error('网络错误，语音识别需要稳定的网络连接。请检查您的网络连接后重试。');
+            toast.error('Network error. Speech recognition requires a stable internet connection. Please check your connection.');
             // Try to recover network status after a delay
             setTimeout(() => {
               checkNetworkConnection().then(online => {
                 setIsOnline(online);
                 if (online && isListening) {
-                  toast.info('网络已恢复，正在重新启动语音识别...');
+                  toast.info('Network restored, restarting speech recognition...');
                   try {
                     recognition.start();
                   } catch (e) {
-                    console.error('重启语音识别失败:', e);
+                    console.error('Failed to restart speech recognition:', e);
                   }
                 }
               });
@@ -383,21 +383,21 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           case 'not-allowed':
           case 'service-not-allowed':
             setPermissionDenied(true);
-            toast.error('麦克风权限被拒绝，请在浏览器设置中启用麦克风权限');
+            toast.error('Microphone permission denied. Please enable it in your browser settings.');
             break;
           case 'bad-grammar':
-            toast.error('语法错误，识别服务无法处理');
+            toast.error('Grammar error, recognition service cannot process');
             break;
           case 'language-not-supported':
-            toast.error(`当前语言 (${language}) 不受支持，请尝试其他语言`);
+            toast.error(`Current language (${language}) is not supported. Please try another language.`);
             break;
           default:
             // Check if it might be a network issue even though not reported as such
             if (!navigator.onLine) {
               setIsOnline(false);
-              toast.error('网络错误，语音识别需要互联网连接。请检查您的网络设置。');
+              toast.error('Network error. Speech recognition requires internet connection. Please check your network settings.');
             } else {
-              toast.error(`语音识别失败: ${event.error}`);
+              toast.error(`Speech recognition failed: ${event.error}`);
             }
         }
         
@@ -451,7 +451,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         // We're already within a user interaction here when the button is clicked
         recognition.start();
         
-        toast.info(`开始${language === 'zh-CN' ? '中文' : '英文'}语音识别，请说话...`);
+        toast.info(`Starting ${language === 'zh-CN' ? 'Chinese' : 'English'} speech recognition, please speak...`);
         
         if (isiOS) {
           toast.info('iOS设备需要允许麦克风权限，并需要说话时声音足够大');
@@ -538,13 +538,13 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         size="icon"
         onClick={() => {
           const httpsUrl = window.location.href.replace('http://', 'https://');
-          toast.error('语音识别需要HTTPS环境，点击切换到HTTPS版本');
+          toast.error('Speech recognition requires HTTPS. Click to switch to HTTPS version.');
           // Prompt user to redirect to HTTPS version
-          if (confirm('语音识别需要在HTTPS环境下使用，是否切换到HTTPS版本？')) {
+          if (confirm('Speech recognition requires HTTPS. Do you want to switch to the HTTPS version?')) {
             window.location.href = httpsUrl;
           }
         }}
-        title="需要HTTPS环境"
+        title="HTTPS Required"
       >
         <Mic className="h-4 w-4" />
       </Button>
@@ -558,8 +558,8 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         type="button"
         variant="outline"
         size="icon"
-        onClick={() => toast.error('您的浏览器不支持语音识别功能，请使用Chrome, Safari等现代浏览器')}
-        title="您的浏览器不支持语音识别功能"
+        onClick={() => toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.')}
+        title="Your browser does not support speech recognition"
       >
         <Mic className="h-4 w-4 text-muted-foreground" />
       </Button>
@@ -579,13 +579,13 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
             checkNetworkConnection().then(online => {
               if (online) {
                 setIsOnline(true);
-                toast.success('网络已恢复，语音识别功能已可用');
+                toast.success('Network restored. Speech recognition is now available.');
               } else {
-                toast.error('网络仍然不可用，语音识别需要互联网连接');
+                toast.error('Network still unavailable. Speech recognition requires internet connection.');
               }
             });
           }}
-          title="网络错误，点击重试"
+          title="Network error, click to retry"
         >
           <Mic className="h-4 w-4" />
         </Button>
@@ -595,7 +595,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           variant={continuousMode ? "default" : "outline"}
           size="icon"
           onClick={toggleContinuousMode}
-          title={continuousMode ? "关闭连续对话模式" : "开启连续对话模式"}
+          title={continuousMode ? "Disable continuous dialog mode" : "Enable continuous dialog mode"}
         >
           <MessageCircle className="h-4 w-4" />
         </Button>
@@ -605,7 +605,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           variant="outline"
           size="icon"
           onClick={toggleLanguage}
-          title={`切换为${language === 'zh-CN' ? '英文' : '中文'}识别`}
+          title={`Switch to ${language === 'zh-CN' ? 'English' : 'Chinese'} recognition`}
         >
           <Globe className="h-4 w-4" />
         </Button>
@@ -622,10 +622,10 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         onClick={toggleListening}
         title={
           permissionDenied 
-            ? "麦克风权限被拒绝，点击尝试重新获取权限" 
+            ? "Microphone permission denied. Click to try again" 
             : isListening 
-              ? "停止语音输入" 
-              : "开始语音输入"
+              ? "Stop voice input" 
+              : "Start voice input"
         }
       >
         {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -636,7 +636,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         variant={continuousMode ? "default" : "outline"}
         size="icon"
         onClick={toggleContinuousMode}
-        title={continuousMode ? "关闭连续对话模式" : "开启连续对话模式"}
+        title={continuousMode ? "Disable continuous dialog mode" : "Enable continuous dialog mode"}
       >
         <MessageCircle className="h-4 w-4" />
       </Button>
@@ -646,7 +646,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         variant="outline"
         size="icon"
         onClick={toggleLanguage}
-        title={`切换为${language === 'zh-CN' ? '英文' : '中文'}识别`}
+        title={`Switch to ${language === 'zh-CN' ? 'English' : 'Chinese'} recognition`}
         disabled={isListening && !continuousMode}
       >
         <Globe className="h-4 w-4" />
