@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { initOpenAI } from '@/lib/voice';
+import OpenAI from 'openai';
+
+// Store the OpenAI instance
+let openai: OpenAI | null = null;
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     // Initialize OpenAI with the API key from environment
-    initOpenAI(apiKey);
+    openai = new OpenAI({ apiKey });
 
     return NextResponse.json(
       { message: 'OpenAI initialized successfully' },
