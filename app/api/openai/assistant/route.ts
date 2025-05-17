@@ -4,7 +4,7 @@ import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userMessage, systemPrompt, knowledgeContent, model = "gpt-4-turbo" } = await req.json();
+    const { userMessage, systemPrompt, knowledgeContent, model = "gpt-4-turbo", conversationHistory = [] } = await req.json();
 
     if (!userMessage) {
       return NextResponse.json({ error: 'User message is required' }, { status: 400 });
@@ -41,7 +41,17 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Add the user's question
+    // Add conversation history
+    if (conversationHistory && conversationHistory.length > 0) {
+      // Only include the last 10 messages to avoid token limits
+      const recentMessages = conversationHistory.slice(-10);
+      messages.push(...recentMessages.map((msg: { role: string; content: string }) => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content
+      })));
+    }
+    
+    // Add the user's latest message
     messages.push({
       role: "user",
       content: userMessage
