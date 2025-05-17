@@ -3,16 +3,17 @@ import { initOpenAI } from '@/lib/voice';
 
 export async function POST(request: Request) {
   try {
-    const { apiKey } = await request.json();
+    // Use the API key from environment variable
+    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { message: 'API key is required' },
-        { status: 400 }
+        { message: 'OpenAI API key not configured' },
+        { status: 500 }
       );
     }
 
-    // Initialize OpenAI with the provided API key
+    // Initialize OpenAI with the API key from environment
     initOpenAI(apiKey);
 
     return NextResponse.json(

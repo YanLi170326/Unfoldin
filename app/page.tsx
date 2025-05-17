@@ -14,8 +14,8 @@ export default function HomePage() {
         <div className="border rounded-lg p-8 hover:shadow-md transition-shadow text-center">
           <h2 className="text-2xl font-semibold mb-4">Unfoldin Emotional Release Assistant</h2>
           <p className="mb-6">
-            A specialized assistant that guides you through emotional release.
-            Helps identify and release emotions through a structured step-by-step process.
+            A guided conversation that helps you identify and release emotions 
+            through a structured step-by-step process.
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 text-left">
@@ -25,7 +25,6 @@ export default function HomePage() {
                 <li>Emotional awareness and identification</li>
                 <li>Step-by-step release process</li>
                 <li>Bilingual support (English/Chinese)</li>
-                <li>Personalized guidance</li>
                 <li>Voice input and output support</li>
               </ul>
             </div>
@@ -36,7 +35,6 @@ export default function HomePage() {
                 <li>Release difficult emotions</li>
                 <li>Develop emotional awareness</li>
                 <li>Private and secure conversations</li>
-                <li>Guided by proven techniques</li>
                 <li>Save your conversation history</li>
               </ul>
             </div>
@@ -49,16 +47,11 @@ export default function HomePage() {
             >
               Start Using Unfoldin
             </Link>
-            
-            <div className="text-sm text-muted-foreground">
-              You'll need to log in or create an account to use the assistant
-            </div>
           </div>
         </div>
       </div>
       
       <div className="mt-16 space-y-4 text-center text-muted-foreground">
-        <p>The assistant uses the OpenAI API for a personalized emotional release experience.</p>
         <p>Your conversations are private and can be saved to your account for future reference.</p>
       </div>
     </div>

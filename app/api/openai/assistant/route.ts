@@ -2,18 +2,28 @@ import { OpenAI } from 'openai';
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
-// Initialize the OpenAI client with API key from environment variable
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(req: NextRequest) {
   try {
-    const { userMessage, systemPrompt, knowledgeContent } = await req.json();
+    const { userMessage, systemPrompt, knowledgeContent, model = "gpt-4-turbo" } = await req.json();
 
     if (!userMessage) {
       return NextResponse.json({ error: 'User message is required' }, { status: 400 });
     }
+    
+    // Use API key from environment variable
+    const apiKey = process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured' },
+        { status: 500 }
+      );
+    }
+    
+    // Initialize the OpenAI client with the API key
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    });
 
     // Prepare the messages array with system and user messages
     const messages: ChatCompletionMessageParam[] = [
@@ -37,9 +47,9 @@ export async function POST(req: NextRequest) {
       content: userMessage
     });
 
-    // Create the chat completion
+    // Create the chat completion with the specified model
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
+      model: model || "gpt-4-turbo",
       messages: messages,
       temperature: 0.7,
       max_tokens: 1000,

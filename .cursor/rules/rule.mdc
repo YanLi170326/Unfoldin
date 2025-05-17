@@ -3,12 +3,14 @@ description:
 globs: 
 alwaysApply: true
 ---
-组件库:shadcn
+Component library:shadcn
 
-css库:tailwind
+css library:tailwind
 
-框架:nextjs
+framework:nextjs
 
-状态管理:jotai
+State Management:jotai
 
-数据库:vercle Neon
+database: vercel Neon
+
+.env.local has OPENAI API KEY. Don't create another one. Dont' create public api key.

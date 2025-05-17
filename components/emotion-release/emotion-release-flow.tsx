@@ -28,8 +28,7 @@ export function EmotionReleaseFlow() {
   const [userResponse, setUserResponse] = useState('');
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [isApiKeySet, setIsApiKeySet] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const [emotionQuestions] = useAtom(emotionQuestionsAtom);
   const [, nextQuestion] = useAtom(nextQuestionAtom);
@@ -65,18 +64,13 @@ export function EmotionReleaseFlow() {
   }, [timer.timeRemaining]);
 
   const initializeOpenAI = async () => {
-    if (!apiKey) {
-      toast.error('Please enter your OpenAI API key');
-      return false;
-    }
-
     try {
       const response = await fetch('/api/openai/init', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apiKey }),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -84,7 +78,7 @@ export function EmotionReleaseFlow() {
         return false;
       }
 
-      setIsApiKeySet(true);
+      setIsInitialized(true);
       return true;
     } catch (error) {
       toast.error('Error initializing OpenAI');
@@ -136,7 +130,7 @@ export function EmotionReleaseFlow() {
   };
 
   const handleStartSession = async () => {
-    if (!isApiKeySet) {
+    if (!isInitialized) {
       const initialized = await initializeOpenAI();
       if (!initialized) return;
     }
@@ -231,37 +225,6 @@ export function EmotionReleaseFlow() {
         <CardTitle className="text-center">Emotion Release Session</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {!isApiKeySet ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">OpenAI API Key (required for voice synthesis)</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-              />
-            </div>
-            
-            <div className="bg-neutral-50 dark:bg-neutral-900 p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 text-center">
-              <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
-                Prefer to use ChatGPT? Access the same experience without needing an API key
-              </p>
-              <Button asChild variant="outline" size="sm" className="gap-2 group">
-                <a 
-                  href="https://chatgpt.com/g/g-681eea969770819185fdd2ca5b25438f-unfoldin-beta" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  Open in ChatGPT
-                  <ExternalLink className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </a>
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        
         <div className="p-4 bg-neutral-100 dark:bg-neutral-800 rounded-md min-h-32 flex items-center justify-center">
           <p className="text-center text-lg">{emotionQuestions.current}</p>
         </div>

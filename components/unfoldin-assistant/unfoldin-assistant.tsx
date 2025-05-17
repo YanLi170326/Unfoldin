@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { atom, useAtom } from 'jotai';
 import { toast } from 'sonner';
+import { ExternalLink } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,9 +36,6 @@ const conversationHistoryAtom = atom<{role: string, content: string}[]>([]);
 const isListeningAtom = atom<boolean>(false);
 const isSpeakingAtom = atom<boolean>(false);
 const modelAtom = atom<"gpt-4o" | "gpt-3.5-turbo">("gpt-4o"); // Default to gpt-4o, fallback to gpt-3.5-turbo
-
-// Unfoldin GPT API Key
-const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 
 export default function UnfoldinAssistant() {
   const [assistantResponse, setAssistantResponse] = useAtom(assistantResponseAtom);
@@ -129,95 +127,61 @@ Use it to:
     },
   });
 
-  // 定义 onSubmit 函数
+  // Modify the onSubmit function to no longer require API key
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsLoading(true);
       
-      // 添加用户消息到对话历史
+      // Add user message to conversation history
       const updatedHistory = [...conversationHistory, {role: "user", content: values.userMessage}];
       setConversationHistory(updatedHistory);
       
-      // 重置表单
+      // Reset form
       form.reset();
       
-      // 使用 OpenAI 直接与 Unfoldin GPT 系统提示和知识文件通信
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      // Use our backend API instead of calling OpenAI directly
+      const response = await fetch('/api/openai/assistant', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
         },
         body: JSON.stringify({
-          model: model, // Use current model (gpt-4o or gpt-3.5-turbo)
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt
-            },
-            {
-              role: "system",
-              content: `Knowledge file 1: Unfoldin_Sedona_Knowledge_Map_FINAL.md\n\n${sedonaKnowledgeMap}`
-            },
-            {
-              role: "system",
-              content: `Knowledge file 2: Unfoldin_GPT_Framework_Minimal_with_Reference.md\n\n${frameworkMinimal}`
-            },
-            {
-              role: "system",
-              content: `Knowledge file 3: Imperturbability_Emotion_Map_ENHANCED.txt\n\n${emotionMap}`
-            },
-            {
-              role: "system",
-              content: `Knowledge file 4: Emotional_Release_AI_GPT_Framework_Bilingual_Fallback.md\n\n${fallbackFramework}`
-            },
-            ...updatedHistory
-          ],
-          temperature: 0.7,
+          userMessage: values.userMessage,
+          systemPrompt: systemPrompt,
+          knowledgeContent: `
+            Knowledge file 1: Unfoldin_Sedona_Knowledge_Map_FINAL.md\n\n${sedonaKnowledgeMap}
+            Knowledge file 2: Unfoldin_GPT_Framework_Minimal_with_Reference.md\n\n${frameworkMinimal}
+            Knowledge file 3: Imperturbability_Emotion_Map_ENHANCED.txt\n\n${emotionMap}
+            Knowledge file 4: Emotional_Release_AI_GPT_Framework_Bilingual_Fallback.md\n\n${fallbackFramework}
+          `,
+          model: model
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        // 检查是否超出配额或速率限制
+        // Check if quota exceeded or rate limited
         if (errorData.error?.message?.includes("exceeded your current quota") && model === "gpt-4o") {
-          // 降级到 gpt-3.5-turbo
+          // Downgrade to gpt-3.5-turbo
           setModel("gpt-3.5-turbo");
           toast.warning("切换到 GPT-3.5 模型 (API 配额超出)");
           
-          // 使用 gpt-3.5-turbo 重试
-          const fallbackResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          // Retry with gpt-3.5-turbo
+          const fallbackResponse = await fetch('/api/openai/assistant', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${OPENAI_API_KEY}`
             },
             body: JSON.stringify({
-              model: "gpt-3.5-turbo",
-              messages: [
-                {
-                  role: "system",
-                  content: systemPrompt
-                },
-                {
-                  role: "system",
-                  content: `Knowledge file 1: Unfoldin_Sedona_Knowledge_Map_FINAL.md\n\n${sedonaKnowledgeMap}`
-                },
-                {
-                  role: "system",
-                  content: `Knowledge file 2: Unfoldin_GPT_Framework_Minimal_with_Reference.md\n\n${frameworkMinimal}`
-                },
-                {
-                  role: "system",
-                  content: `Knowledge file 3: Imperturbability_Emotion_Map_ENHANCED.txt\n\n${emotionMap}`
-                },
-                {
-                  role: "system",
-                  content: `Knowledge file 4: Emotional_Release_AI_GPT_Framework_Bilingual_Fallback.md\n\n${fallbackFramework}`
-                },
-                ...updatedHistory
-              ],
-              temperature: 0.7,
+              userMessage: values.userMessage,
+              systemPrompt: systemPrompt,
+              knowledgeContent: `
+                Knowledge file 1: Unfoldin_Sedona_Knowledge_Map_FINAL.md\n\n${sedonaKnowledgeMap}
+                Knowledge file 2: Unfoldin_GPT_Framework_Minimal_with_Reference.md\n\n${frameworkMinimal}
+                Knowledge file 3: Imperturbability_Emotion_Map_ENHANCED.txt\n\n${emotionMap}
+                Knowledge file 4: Emotional_Release_AI_GPT_Framework_Bilingual_Fallback.md\n\n${fallbackFramework}
+              `,
+              model: "gpt-3.5-turbo"
             }),
           });
           
@@ -227,13 +191,13 @@ Use it to:
           }
           
           const fallbackData = await fallbackResponse.json();
-          const assistantMessage = fallbackData.choices[0].message.content;
+          const assistantMessage = fallbackData.message;
           
-          // 添加助手响应到对话历史
+          // Add assistant response to conversation history
           setConversationHistory([...updatedHistory, {role: "assistant", content: assistantMessage}]);
           setAssistantResponse(assistantMessage);
           
-          // 自动朗读响应
+          // Auto read response
           speakText(assistantMessage);
           
           return;
@@ -243,13 +207,13 @@ Use it to:
       }
 
       const data = await response.json();
-      const assistantMessage = data.choices[0].message.content;
+      const assistantMessage = data.message;
       
-      // 添加助手响应到对话历史
+      // Add assistant response to conversation history
       setConversationHistory([...updatedHistory, {role: "assistant", content: assistantMessage}]);
       setAssistantResponse(assistantMessage);
       
-      // 自动朗读响应
+      // Auto read response
       speakText(assistantMessage);
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
@@ -382,7 +346,7 @@ Use it to:
           <div>
             <CardTitle>Unfoldin Emotional Release Assistant</CardTitle>
             <CardDescription>
-              A specialized assistant for emotional release based on the Sedona Method
+              A guided emotional release experience
               {model === "gpt-3.5-turbo" && <span className="ml-2 text-yellow-500">(使用 GPT-3.5 模型)</span>}
             </CardDescription>
           </div>
@@ -404,6 +368,13 @@ Use it to:
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Optional: Add informational box about using the built-in API */}
+        <div className="bg-neutral-50 dark:bg-neutral-900 p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 text-center mb-4">
+          <p className="text-sm text-muted-foreground mb-1">
+            This assistant helps you identify, feel, and release emotions through a structured process.
+          </p>
+        </div>
+
         {conversationHistory.length > 0 && (
           <div className="my-4 space-y-4">
             {conversationHistory.map((message, index) => (
@@ -520,7 +491,7 @@ Use it to:
       
       <CardFooter className="flex justify-between">
         <p className="text-xs text-muted-foreground">
-          Powered by the Unfoldin emotional release framework and the Sedona Method
+          Powered by the Unfoldin emotional release framework
         </p>
       </CardFooter>
     </Card>
