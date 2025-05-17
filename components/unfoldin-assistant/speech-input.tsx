@@ -157,13 +157,26 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         toast.error('Network disconnected. Speech recognition requires internet connection. Please check your network.');
       }
 
-      // Check if speech recognition is supported
-      const isSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+      // FIXED: Better check for speech recognition support - specifically check webkit prefix since 
+      // Chrome reports only webkitSpeechRecognition as true
+      const isStandardSupported = 'SpeechRecognition' in window;
+      const isWebkitSupported = 'webkitSpeechRecognition' in window;
+      const isSupported = isStandardSupported || isWebkitSupported;
+      
+      console.log('Speech support check:', { 
+        standard: isStandardSupported, 
+        webkit: isWebkitSupported,
+        final: isSupported 
+      });
+      
       setSupported(isSupported);
 
       if (!isSupported) {
         toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.');
         return;
+      } else {
+        // Log which version will be used
+        console.log(`Using ${isStandardSupported ? 'standard' : 'webkit'} Speech Recognition API`);
       }
 
       // iOS Safari requires user interaction to start speech recognition
@@ -322,6 +335,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     }
 
     setIsListening(true);
+    // FIXED: More explicit handling of standard vs webkit SpeechRecognition
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     
     if (!SpeechRecognitionAPI) {
@@ -336,8 +350,14 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       const recognition = new SpeechRecognitionAPI();
       setRecognitionInstance(recognition);
       
-      // Log the recognition instance
-      console.log('Recognition instance created:', !!recognition);
+      // Log the recognition instance details for debugging
+      console.log('Recognition instance created:', {
+        exists: !!recognition,
+        type: window.SpeechRecognition ? 'standard' : 'webkit',
+        lang: language,
+        continuous: continuousMode,
+        constructor: recognition.constructor.name
+      });
       
       recognition.lang = language; 
       recognition.continuous = continuousMode;
@@ -513,6 +533,16 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         }
       } catch (error) {
         console.error('Error starting speech recognition:', error);
+        
+        // Enhance error logging for debugging speech recognition issues
+        if (error instanceof Error) {
+          console.error('Speech recognition startup error details:', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+            recognitionState: recognition?.state || 'unknown'
+          });
+        }
         
         // Handle network offline error
         if (error instanceof Error && error.message === 'Network offline') {

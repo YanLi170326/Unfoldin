@@ -266,16 +266,31 @@ Use the knowledge from the reference files to identify emotions and guide the re
                              window.location.hostname === 'localhost' ||
                              window.location.hostname === '127.0.0.1';
                              
-      const isSpeechRecognitionSupported = 
-        'SpeechRecognition' in window || 
-        'webkitSpeechRecognition' in window;
+      const isStandardSpeechRecognitionSupported = 'SpeechRecognition' in window;
+      const isWebkitSpeechRecognitionSupported = 'webkitSpeechRecognition' in window;
+      const isSpeechRecognitionSupported = isStandardSpeechRecognitionSupported || isWebkitSpeechRecognitionSupported;
+      
+      // Log more detailed diagnostics
+      console.log('Speech support check:', {
+        isSecureContext,
+        standard: isStandardSpeechRecognitionSupported,
+        webkit: isWebkitSpeechRecognitionSupported,
+        supported: isSpeechRecognitionSupported && isSecureContext
+      });
       
       // Speech Recognition is supported only if both secure context and browser API support
-      setWebSpeechSupported(isSecureContext && isSpeechRecognitionSupported);
+      const supported = isSecureContext && isSpeechRecognitionSupported;
+      setWebSpeechSupported(supported);
+      
+      // Automatically use fallback method if web speech API isn't available
+      if (!supported && !useFallbackSpeech) {
+        console.log('Web Speech API not supported, automatically switching to fallback method');
+        setUseFallbackSpeech(true);
+      }
     };
     
     checkSpeechSupport();
-  }, []);
+  }, [useFallbackSpeech]);
 
   // Toggle between Web Speech API and Fallback method
   const toggleSpeechInputMethod = useCallback(() => {
@@ -283,7 +298,12 @@ Use the knowledge from the reference files to identify emotions and guide the re
     toast.info(useFallbackSpeech 
       ? 'Switched to browser speech recognition (WebSpeech API)' 
       : 'Switched to API-based speech recognition (OpenAI Whisper)');
-  }, [useFallbackSpeech]);
+    
+    // Reset listening state when switching methods
+    if (isListening) {
+      setIsListening(false);
+    }
+  }, [useFallbackSpeech, isListening, setIsListening]);
 
   // 语音输入内容更新
   const handleSpeechInput = useCallback((text: string) => {
@@ -479,20 +499,18 @@ Use the knowledge from the reference files to identify emotions and guide the re
                               />
                             )}
                             
-                            {webSpeechSupported && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={toggleSpeechInputMethod}
-                                title={useFallbackSpeech 
-                                  ? "切换到浏览器语音识别" 
-                                  : "切换到API语音识别"
-                                }
-                              >
-                                <RotateCw className="h-4 w-4" />
-                              </Button>
-                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={toggleSpeechInputMethod}
+                              title={useFallbackSpeech 
+                                ? "Switch to browser speech recognition" 
+                                : "Switch to API speech recognition"
+                              }
+                            >
+                              <RotateCw className="h-4 w-4" />
+                            </Button>
                           </>
                         )}
                       </div>

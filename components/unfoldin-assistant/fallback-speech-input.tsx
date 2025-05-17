@@ -87,9 +87,16 @@ export default function FallbackSpeechInput({
   // Process audio using either the API or direct client-side approach
   const processAudio = useCallback(async (audioBlob: Blob) => {
     try {
+      console.log('Processing audio with Whisper API fallback', {
+        size: audioBlob.size,
+        type: audioBlob.type
+      });
+      
       // Try client-side processing first using the imported function
       try {
+        console.log('Attempting client-side audio processing');
         const text = await transcribeAudio(audioBlob);
+        console.log('Client-side audio processing successful');
         return text;
       } catch (clientError) {
         console.error('Client-side processing failed, falling back to API:', clientError);
@@ -98,6 +105,7 @@ export default function FallbackSpeechInput({
         const formData = new FormData();
         formData.append('audio', audioBlob);
         
+        console.log('Sending audio to server API for processing');
         const response = await fetch('/api/openai/whisper', {
           method: 'POST',
           body: formData,
@@ -105,6 +113,7 @@ export default function FallbackSpeechInput({
         
         if (!response.ok) {
           const data = await response.json();
+          console.error('Server API error:', data);
           throw new Error(data.error || `Server responded with ${response.status}`);
         }
         
@@ -113,6 +122,7 @@ export default function FallbackSpeechInput({
           throw new Error('No transcription returned');
         }
         
+        console.log('Server API processing successful');
         return data.text;
       }
     } catch (error) {
