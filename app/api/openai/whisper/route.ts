@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+// Log OPENAI_API_KEY status
+if (process.env.OPENAI_API_KEY) {
+  console.log('OpenAI API key found in environment variables.');
+} else {
+  console.warn('OpenAI API key NOT FOUND in environment variables. The /api/openai/whisper endpoint will not work.');
+}
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
