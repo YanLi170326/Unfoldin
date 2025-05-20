@@ -78,7 +78,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       
       if (!isContextSecure) {
         console.error('Speech recognition requires a secure context (HTTPS) to work');
-        toast.error('Speech recognition requires HTTPS. Click to switch to HTTPS version.');
+        toast.error('Voice input requires a secure connection (HTTPS). Please ensure you are using HTTPS or try the API-based input method.');
       }
     }
   }, []);
@@ -174,7 +174,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       setSupported(isSupported);
 
       if (!isSupported) {
-        toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.');
+        toast.error('Your browser does not support this voice input method. Please use a modern browser like Chrome or Safari, or switch to the API-based input method.');
         return;
       } else {
         // Log which version will be used
@@ -195,7 +195,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           
           if (permissionStatus.state === 'denied') {
             setPermissionDenied(true);
-            toast.error('Microphone permission denied. Please enable it in your browser settings.');
+            toast.error('Microphone access denied. Please enable microphone permissions for this site in your browser settings. You can also try the API-based input method.');
           }
           
           // Listen for permission changes
@@ -205,7 +205,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
               setPermissionDenied(true);
               setIsListening(false);
               stopMicrophoneStream();
-              toast.error('Microphone permission denied. Please enable it in your browser settings.');
+              toast.error('Microphone access denied. Please enable microphone permissions for this site in your browser settings. You can also try the API-based input method.');
             } else if (permissionStatus.state === 'granted') {
               setPermissionDenied(false);
             }
@@ -252,17 +252,17 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const toggleListening = useCallback(() => {
     // First check if we're in a secure context
     if (!isSecureContext) {
-      toast.error('语音识别需要在HTTPS环境下使用，请使用HTTPS访问此网站');
+      toast.error('Voice input requires a secure connection (HTTPS). Please ensure you are using HTTPS or try the API-based input method.');
       return;
     }
 
     if (!supported) {
-      toast.error('您的浏览器不支持语音识别功能，请使用Chrome, Safari等现代浏览器');
+      toast.error('Your browser does not support this voice input method. Please use a modern browser like Chrome or Safari, or switch to the API-based input method.');
       return;
     }
 
     if (permissionDenied) {
-      toast.error('麦克风权限被拒绝，请在浏览器设置中启用麦克风权限');
+      toast.error('Microphone access denied. Please enable microphone permissions for this site in your browser settings. You can also try the API-based input method.');
       return;
     }
 
@@ -314,7 +314,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       // Handle specific error types
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         setPermissionDenied(true);
-        toast.error('Microphone permission denied. Please enable it in your browser settings.');
+        toast.error('Microphone access denied. Please enable microphone permissions for this site in your browser settings. You can also try the API-based input method.');
       } else if (error.name === 'NotFoundError') {
         toast.error('No microphone found. Please check your device.');
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
@@ -345,7 +345,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     
     if (!SpeechRecognitionAPI) {
       console.error('Speech Recognition API not available despite earlier check');
-      toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.');
+      toast.error('Your browser does not support this voice input method. Please use a modern browser like Chrome or Safari, or switch to the API-based input method.');
       setIsListening(false);
       return;
     }
@@ -432,7 +432,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         // Provide more specific error messages based on the error type
         switch(event.error) {
           case 'no-speech':
-            toast.warning('No speech detected. Please ensure your microphone is working and speak clearly.');
+            toast.warning('No speech was detected. Please check your microphone, speak clearly, or try the API-based input method if issues persist.');
             break;
           case 'aborted':
             toast.info('Speech recognition cancelled');
@@ -443,7 +443,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           case 'network':
             // Mark as offline and show detailed error
             setIsOnline(false);
-            toast.error('Network error. Speech recognition requires a stable internet connection. Please check your connection.');
+            toast.error('Network error with browser voice input. Please check your connection or switch to the API-based input method.');
             // Try to recover network status after a delay
             setTimeout(() => {
               checkNetworkConnection().then(online => {
@@ -462,7 +462,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           case 'not-allowed':
           case 'service-not-allowed':
             setPermissionDenied(true);
-            toast.error('Microphone permission denied. Please enable it in your browser settings.');
+            toast.error('Microphone access denied. Please enable microphone permissions for this site in your browser settings. You can also try the API-based input method.');
             break;
           case 'bad-grammar':
             toast.error('Grammar error, recognition service cannot process');
@@ -652,13 +652,13 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         size="icon"
         onClick={() => {
           const httpsUrl = window.location.href.replace('http://', 'https://');
-          toast.error('Speech recognition requires HTTPS. Click to switch to HTTPS version.');
+          toast.error('Voice input requires a secure connection (HTTPS). Please ensure you are using HTTPS or try the API-based input method.');
           // Prompt user to redirect to HTTPS version
-          if (confirm('Speech recognition requires HTTPS. Do you want to switch to the HTTPS version?')) {
+          if (confirm('Voice input requires a secure connection (HTTPS). Do you want to switch to the HTTPS version of this page? This may resolve the issue.')) {
             window.location.href = httpsUrl;
           }
         }}
-        title="HTTPS Required"
+        title="HTTPS Required for Voice Input"
       >
         <Mic className="h-4 w-4" />
       </Button>
@@ -672,8 +672,8 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         type="button"
         variant="outline"
         size="icon"
-        onClick={() => toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.')}
-        title="Your browser does not support speech recognition"
+        onClick={() => toast.error('Your browser does not support this voice input method. Please use a modern browser like Chrome or Safari, or switch to the API-based input method.')}
+        title="Browser voice input not supported. Try API method."
       >
         <Mic className="h-4 w-4 text-muted-foreground" />
       </Button>

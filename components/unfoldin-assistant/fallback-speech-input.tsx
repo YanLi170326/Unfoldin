@@ -129,35 +129,57 @@ export default function FallbackSpeechInput({
           method: 'POST',
           body: formData,
         });
-        
+
         if (!response.ok) {
-          const data = await response.json();
-          console.error('Server API error:', data);
-          throw new Error(data.error || `Server responded with ${response.status}`);
+          let errorJson;
+          try {
+            errorJson = await response.json();
+          } catch (e) {
+            // Not a JSON response, or other parsing error
+            console.error('API response was not valid JSON:', response.statusText);
+            const fetchError = new Error(`API request failed with status ${response.status}. ${response.statusText || 'Server error'}`);
+            (fetchError as any).status = response.status; // Attach status for later handling
+            throw fetchError;
+          }
+          // Log the detailed error from API
+          console.error('Server API error response:', errorJson, 'Status:', response.status);
+          // Create an error object that includes the message from the API and the status
+          const apiError = new Error(errorJson.error || `API Error: Status ${response.status}`);
+          (apiError as any).status = response.status; // Attach status for later handling
+          throw apiError;
         }
-        
+
         const data = await response.json();
         if (!data.text) {
-          throw new Error('No transcription returned');
+          // This case might indicate an API success (200 OK) but no actual transcription text
+          console.warn('API success but no transcription text returned:', data);
+          const noTextError = new Error('No transcription text returned by API.');
+          (noTextError as any).status = response.status; // include status for consistency
+          throw noTextError;
         }
-        
+
         console.log('Server API processing successful');
         return data.text;
       }
     } catch (error) {
-      console.error('Error processing audio:', error);
-      throw error;
+      // Log the error that will be caught by stopRecording
+      console.error('Error in processAudio, propagating to stopRecording:', error);
+      // Ensure it's an error object and propagate it
+      if (error instanceof Error) {
+        throw error; // Propagate error (with status if attached)
+      }
+      // Fallback for non-Error objects thrown
+      throw new Error('An unknown error occurred during audio processing.');
     }
   }, []);
 
   // Stop recording and process audio
   const stopRecording = useCallback(async () => {
-    // Clear the duration update timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
+
     if (!recorderRef.current) {
       setIsRecording(false);
       setIsListening(false);
@@ -165,44 +187,54 @@ export default function FallbackSpeechInput({
     }
 
     try {
-      // Check if we've met the minimum recording time
       const elapsed = recordingStartTime ? Date.now() - recordingStartTime : 0;
-      console.log(`Recording duration: ${elapsed}ms`);
-      
       if (elapsed < minRecordingDuration) {
-        toast.warning(`Recording too short (${(elapsed/1000).toFixed(1)}s), please record for at least ${minRecordingDuration/1000}s`);
-        return; // Don't stop recording yet
+        toast.warning(`Recording too short (${(elapsed / 1000).toFixed(1)}s), please record for at least ${minRecordingDuration / 1000}s`);
+        // To prevent processing, we should return or set isRecording to false and exit.
+        // However, to match previous behavior of attempting to process anyway:
+        // setIsRecording(false); // User has to click again
+        // return; 
+        // For now, it proceeds to process as per original logic.
       }
-      
+
       setIsProcessing(true);
       toast.info('Processing speech...');
-      
-      // Stop recording and get the audio blob
       const audioBlob = await recorderRef.current.stop();
-      
-      // Process the audio
       const transcript = await processAudio(audioBlob);
-      
-      // Update the transcript
       onTranscript(transcript);
-      
-      // Automatically submit if enabled
+
       if (autoSubmit) {
         const event = new CustomEvent('speech-submit', { detail: { transcript } });
         document.dispatchEvent(event);
       }
-      
       toast.success('Speech recognition successful');
+
     } catch (error) {
-      console.error('Error processing audio:', error);
-      
-      // Extract useful error message
-      let errorMessage = 'Failed to process speech. Please try again.';
-      if (error instanceof Error) {
-        errorMessage = error.message;
+      console.error('Error caught in stopRecording:', error);
+      const err = error as any; // To easily access potential 'status' property
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      const errorStatus = err?.status;
+
+      if (errorStatus === 500 && (errorMessage.includes('OpenAI API key not configured') || errorMessage.includes('Invalid API key'))) {
+        toast.error("Transcription service error. Please contact support or check server configuration.");
+      } else if (errorStatus === 400 && errorMessage.includes('No audio file provided')) {
+        // This specific message comes from the server route, not client-side check for audioBlob
+        toast.error("No audio data received by server. Please try recording again.");
+      } else if (errorMessage.includes('No transcription text returned by API')) {
+        toast.warning('Transcription successful but no text was returned. The audio might have been silent.');
+      } else if (errorMessage.includes('API request failed') || errorMessage.includes('API Error: Status')) {
+        // Covers errors from non-JSON responses or explicitly set API errors from processAudio
+        toast.error(errorMessage);
       }
-      
-      toast.error(errorMessage);
+      // Check for client-side specific errors (e.g., from transcribeAudio if it were to throw these directly here)
+      // For now, these are assumed to be caught by the fallback logic in processAudio or are generic.
+      // else if (clientProcessingErrorMessages.some(msg => errorMessage.includes(msg))) {
+      // toast.error(`Client-side transcription error: ${errorMessage}`);
+      // }
+      else {
+        // Generic fallback for other errors, including those from client-side transcribeAudio if they reach here
+        toast.error(`Transcription failed: ${errorMessage}`);
+      }
     } finally {
       setIsRecording(false);
       setIsProcessing(false);
@@ -210,6 +242,12 @@ export default function FallbackSpeechInput({
       setRecordingDuration(0);
     }
   }, [onTranscript, autoSubmit, setIsListening, processAudio, recordingStartTime, minRecordingDuration]);
+
+  // Helper for client-side error messages - can be expanded if needed
+  // const clientProcessingErrorMessages = [
+  //   "AudioBufferSourceNode has not been started",
+  //   "AudioContext is not allowed to start"
+  // ];
 
   // Cancel recording
   const cancelRecording = useCallback(() => {
