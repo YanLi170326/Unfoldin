@@ -518,6 +518,9 @@ Use the knowledge from the reference files to identify emotions and guide the re
                       </div>
                     </div>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1 ml-2 text-center">
+                    Tip: Ensure mic is unmuted & volume is adequate.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

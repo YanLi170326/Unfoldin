@@ -33,7 +33,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const [isOnline, setIsOnline] = useState(true);
   const [isSecureContext, setIsSecureContext] = useState(true);
   const [recognitionStartTime, setRecognitionStartTime] = useState<number | null>(null);
-  const [minRecordingDuration] = useState(3000); // Minimum 3 seconds recording time
+  const [minRecordingDuration] = useState(3500); // Minimum 3.5 seconds recording time
 
   // 停止麦克风流
   const stopMicrophoneStream = useCallback(() => {
@@ -368,8 +368,8 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       recognition.continuous = continuousMode;
       // Set these to true to give more time for recognition to process
       recognition.interimResults = true;
-      // Increase the max alternatives to improve recognition accuracy
-      recognition.maxAlternatives = 3;
+      // Set max alternatives to 1
+      recognition.maxAlternatives = 1;
 
       // iOS Safari needs shorter timeouts
       if (isiOS) {
@@ -427,6 +427,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       };
 
       recognition.onerror = (event: SpeechRecognitionError) => {
+        console.error('Browser Speech Recognition Error Event:', JSON.stringify(event, Object.getOwnPropertyNames(event)));
         console.error('Speech recognition error:', event.error, event);
         
         // Provide more specific error messages based on the error type
@@ -490,6 +491,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         // Check if we've met the minimum recording duration
         const now = Date.now();
         const elapsed = recognitionStartTime ? now - recognitionStartTime : 0;
+        console.log(`Speech recognition ended. Elapsed: ${elapsed}ms, MinDuration: ${minRecordingDuration}ms, isListening: ${isListening}, continuousMode: ${continuousMode}`);
         console.log(`Speech recognition ended after ${elapsed}ms`);
         
         // If we haven't recorded for minimum duration and we're still meant to be listening,
