@@ -210,6 +210,8 @@ Use the knowledge from the reference files to identify emotions and guide the re
       toast.error(`Failed to get a response: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
+      setIsListening(false);
+      console.log('[DEBUG] isLoading:', false, 'isListening:', false);
     }
   };
 
