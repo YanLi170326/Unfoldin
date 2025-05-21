@@ -27,6 +27,25 @@ export default function FallbackSpeechInput({
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const [minRecordingDuration] = useState(3000); // Minimum 3 seconds for better results
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [browserInfo, setBrowserInfo] = useState<Record<string, boolean>>({});
+
+  // Check browser type on mount
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const info = {
+      isChrome: /Chrome/.test(ua) && !/Edge|Edg|OPR|Opera/.test(ua),
+      isFirefox: /Firefox/.test(ua),
+      isSafari: /Safari/.test(ua) && !/Chrome/.test(ua),
+      isEdge: /Edge|Edg/.test(ua),
+      isArc: /Chrome/.test(ua) && /Arc/.test(ua),
+      isOpera: /OPR|Opera/.test(ua),
+      isMobile: /Mobi|Android|iPhone|iPad|iPod/.test(ua),
+      isIOS: /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    };
+    
+    setBrowserInfo(info);
+    console.log('Fallback speech input - browser info:', info);
+  }, []);
 
   // Check browser for permission status on mount
   useEffect(() => {
@@ -106,15 +125,25 @@ export default function FallbackSpeechInput({
   // Process audio using either the API or direct client-side approach
   const processAudio = useCallback(async (audioBlob: Blob) => {
     try {
+      // Determine optimal audio format based on browser
+      // Some browsers might not support webm properly
+      const audioType = audioBlob.type || 'audio/webm';
+      
       console.log('Processing audio with Whisper API fallback', {
         size: audioBlob.size,
-        type: audioBlob.type
+        type: audioType,
+        browser: browserInfo
       });
+      
+      // Create a more browser-compatible audio blob if needed
+      let processedBlob = audioBlob;
+      
+      // For Safari, we might need to convert to a different format, but for now we'll use as-is
       
       // Try client-side processing first using the imported function
       try {
         console.log('Attempting client-side audio processing');
-        const text = await transcribeAudio(audioBlob);
+        const text = await transcribeAudio(processedBlob);
         console.log('Client-side audio processing successful');
         return text;
       } catch (clientError) {
@@ -122,7 +151,7 @@ export default function FallbackSpeechInput({
         
         // Fall back to API if client-side fails
         const formData = new FormData();
-        formData.append('audio', audioBlob);
+        formData.append('audio', processedBlob);
         
         console.log('Sending audio to server API for processing');
         const response = await fetch('/api/openai/whisper', {
@@ -148,7 +177,7 @@ export default function FallbackSpeechInput({
       console.error('Error processing audio:', error);
       throw error;
     }
-  }, []);
+  }, [browserInfo]);
 
   // Stop recording and process audio
   const stopRecording = useCallback(async () => {

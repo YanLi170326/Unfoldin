@@ -121,10 +121,23 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
 
   // Function to check exact speech recognition support
   const checkExactSpeechSupport = useCallback(() => {
+    const ua = navigator.userAgent;
+    const browserInfo = {
+      isChrome: /Chrome/.test(ua) && !/Edge|Edg|OPR|Opera/.test(ua),
+      isFirefox: /Firefox/.test(ua),
+      isSafari: /Safari/.test(ua) && !/Chrome/.test(ua),
+      isEdge: /Edge|Edg/.test(ua),
+      isArc: /Chrome/.test(ua) && /Arc/.test(ua),
+      isOpera: /OPR|Opera/.test(ua),
+      isMobile: /Mobi|Android|iPhone|iPad|iPod/.test(ua),
+      isIOS: /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    };
+
     const diagnosticInfo = {
       window: typeof window !== 'undefined',
       speechRecognition: 'SpeechRecognition' in window,
       webkitSpeechRecognition: 'webkitSpeechRecognition' in window,
+      browserDetection: browserInfo,
       userAgent: navigator.userAgent,
       platform: navigator.platform,
       vendor: navigator.vendor,
@@ -146,6 +159,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     const checkSupportAndPermission = async () => {
       // Log diagnostic information first
       const diagnosticInfo = checkExactSpeechSupport();
+      const browserInfo = diagnosticInfo.browserDetection;
       
       // Check if we're in a secure context first
       if (!isSecureContext) {
@@ -163,18 +177,33 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       // Chrome reports only webkitSpeechRecognition as true
       const isStandardSupported = 'SpeechRecognition' in window;
       const isWebkitSupported = 'webkitSpeechRecognition' in window;
-      const isSupported = isStandardSupported || isWebkitSupported;
+      let isSupported = isStandardSupported || isWebkitSupported;
+      
+      // Special handling for Arc browser which may have bugs with speech recognition
+      if (browserInfo.isArc) {
+        console.log('Arc browser detected - may have limited speech recognition support');
+        // This is still supported technically, but we'll switch to fallback mode later
+      }
+      
+      // Firefox requires special handling
+      if (browserInfo.isFirefox) {
+        console.log('Firefox detected - standard Speech Recognition API not supported');
+        isSupported = false; // Force fallback for Firefox
+      }
       
       console.log('Speech support check:', { 
         standard: isStandardSupported, 
         webkit: isWebkitSupported,
+        browser: browserInfo,
         final: isSupported 
       });
       
       setSupported(isSupported);
 
       if (!isSupported) {
-        toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.');
+        toast.error('Your browser does not support speech recognition. Switching to alternative method.');
+        // Dispatch an event to trigger fallback
+        document.dispatchEvent(new CustomEvent('use-speech-fallback'));
         return;
       } else {
         // Log which version will be used
@@ -182,8 +211,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       }
 
       // iOS Safari requires user interaction to start speech recognition
-      if (/iPad|iPhone|iPod/.test(navigator.userAgent) || 
-          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+      if (browserInfo.isIOS) {
         console.log('Running on iOS - speech recognition requires user interaction');
       }
 
@@ -340,12 +368,18 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
     // Set the start time when we begin listening
     setRecognitionStartTime(Date.now());
     
+    // Get browser info for special handling
+    const diagnosticInfo = checkExactSpeechSupport();
+    const browserInfo = diagnosticInfo.browserDetection;
+    
     // FIXED: More explicit handling of standard vs webkit SpeechRecognition
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     
     if (!SpeechRecognitionAPI) {
       console.error('Speech Recognition API not available despite earlier check');
-      toast.error('Your browser does not support speech recognition. Please use Chrome, Safari or other modern browsers.');
+      toast.error('Your browser does not support speech recognition. Switching to alternative method.');
+      // Dispatch an event to trigger fallback
+      document.dispatchEvent(new CustomEvent('use-speech-fallback'));
       setIsListening(false);
       return;
     }
@@ -361,18 +395,34 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         type: window.SpeechRecognition ? 'standard' : 'webkit',
         lang: language,
         continuous: continuousMode,
+        browser: browserInfo,
         constructor: recognition.constructor.name
       });
       
       recognition.lang = language; 
       recognition.continuous = continuousMode;
-      // Set these to true to give more time for recognition to process
-      recognition.interimResults = true;
-      // Increase the max alternatives to improve recognition accuracy
-      recognition.maxAlternatives = 3;
+      
+      // Browser-specific configurations
+      if (browserInfo.isArc) {
+        // Arc browser needs specific settings
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 5; // More alternatives for better accuracy
+      } else if (browserInfo.isChrome || browserInfo.isEdge) {
+        // Chrome and Edge work well with these settings
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 3;
+      } else if (browserInfo.isSafari) {
+        // Safari may need different settings
+        recognition.interimResults = true;
+        recognition.continuous = false; // Safari can be problematic with continuous mode
+      } else {
+        // Default settings for other browsers
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 3;
+      }
 
       // iOS Safari needs shorter timeouts
-      if (isiOS) {
+      if (browserInfo.isIOS) {
         recognition.interimResults = true; // Try this for iOS
         console.log('iOS detected, setting interimResults to true');
       }
@@ -557,7 +607,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         
         toast.info(`Starting ${language === 'zh-CN' ? 'Chinese' : 'English'} speech recognition, please speak...`);
         
-        if (isiOS) {
+        if (browserInfo.isIOS) {
           toast.info('iOS devices require microphone permission and loud enough speech');
         }
         
@@ -585,7 +635,7 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         // Special handling for iOS "already running" error
         else if (error instanceof DOMException && 
             error.name === 'InvalidStateError' && 
-            isiOS) {
+            browserInfo.isIOS) {
           toast.error('iOS speech recognition already running. Please stop current recognition first');
           // Try to recover by stopping any existing session
           try {

@@ -272,26 +272,47 @@ Use the knowledge from the reference files to identify emotions and guide the re
       const isWebkitSpeechRecognitionSupported = 'webkitSpeechRecognition' in window;
       const isSpeechRecognitionSupported = isStandardSpeechRecognitionSupported || isWebkitSpeechRecognitionSupported;
       
+      // Check if using Arc browser (known to have issues with speech recognition)
+      const isArcBrowser = /Chrome/.test(navigator.userAgent) && /Arc/.test(navigator.userAgent);
+      const isFirefox = /Firefox/.test(navigator.userAgent);
+      const isUnsupportedBrowser = isArcBrowser || isFirefox;
+      
       // Log more detailed diagnostics
       console.log('Speech support check:', {
         isSecureContext,
         standard: isStandardSpeechRecognitionSupported,
         webkit: isWebkitSpeechRecognitionSupported,
-        supported: isSpeechRecognitionSupported && isSecureContext
+        supported: isSpeechRecognitionSupported && isSecureContext,
+        isArcBrowser,
+        isFirefox,
+        userAgent: navigator.userAgent
       });
       
       // Speech Recognition is supported only if both secure context and browser API support
-      const supported = isSecureContext && isSpeechRecognitionSupported;
+      // Arc browser is technically supported but has issues, so we'll use the fallback for it
+      const supported = isSecureContext && isSpeechRecognitionSupported && !isUnsupportedBrowser;
       setWebSpeechSupported(supported);
       
-      // Automatically use fallback method if web speech API isn't available
-      if (!supported && !useFallbackSpeech) {
-        console.log('Web Speech API not supported, automatically switching to fallback method');
+      // Automatically use fallback method if web speech API isn't available or browser is known to have issues
+      if ((!supported || isUnsupportedBrowser) && !useFallbackSpeech) {
+        console.log(`Web Speech API ${!supported ? 'not supported' : 'has issues in this browser'}, automatically switching to fallback method`);
         setUseFallbackSpeech(true);
       }
     };
     
     checkSpeechSupport();
+    
+    // Listen for fallback request from the speech input component
+    const handleFallbackRequest = () => {
+      console.log('Received request to use fallback speech recognition');
+      setUseFallbackSpeech(true);
+    };
+    
+    document.addEventListener('use-speech-fallback', handleFallbackRequest);
+    
+    return () => {
+      document.removeEventListener('use-speech-fallback', handleFallbackRequest);
+    };
   }, [useFallbackSpeech]);
 
   // Toggle between Web Speech API and Fallback method
@@ -503,15 +524,21 @@ Use the knowledge from the reference files to identify emotions and guide the re
                             
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
                               onClick={toggleSpeechInputMethod}
                               title={useFallbackSpeech 
-                                ? "Switch to browser speech recognition" 
-                                : "Switch to API speech recognition"
+                                ? "Switch to browser speech recognition (faster but less accurate)" 
+                                : "Switch to API speech recognition (more accurate and better browser support)"
                               }
                             >
-                              <RotateCw className="h-4 w-4" />
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h3"></path>
+                                <path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"></path>
+                                <path d="M12 7v10"></path>
+                                <path d="m9 8 3-1 3 1"></path>
+                                <path d="m9 16 3 1 3-1"></path>
+                              </svg>
                             </Button>
                           </>
                         )}
