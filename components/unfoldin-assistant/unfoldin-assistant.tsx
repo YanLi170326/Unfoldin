@@ -393,12 +393,6 @@ Use the knowledge from the reference files to identify emotions and guide the re
     }
   };
 
-  // 切换模型
-  const handleModelChange = (newModel: "gpt-4o" | "gpt-3.5-turbo") => {
-    setModel(newModel);
-    toast.info(`Switched to ${newModel === "gpt-4o" ? "GPT-4o" : "GPT-3.5-turbo"} model`);
-  };
-
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
@@ -407,22 +401,7 @@ Use the knowledge from the reference files to identify emotions and guide the re
             <CardTitle>Unfoldin Emotional Release Assistant</CardTitle>
             <CardDescription>
               A guided emotional release chat
-              {model === "gpt-3.5-turbo" && <span className="ml-2 text-yellow-500">(Using GPT-3.5 model)</span>}
             </CardDescription>
-          </div>
-          <div className="w-40">
-            <Select 
-              value={model} 
-              onValueChange={(value: string) => handleModelChange(value as "gpt-4o" | "gpt-3.5-turbo")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择模型" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                <SelectItem value="gpt-3.5-turbo">GPT-3.5-turbo</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </CardHeader>

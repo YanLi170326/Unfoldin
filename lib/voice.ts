@@ -6,7 +6,8 @@ let openai: OpenAI | null = null;
 // Lazy initialize OpenAI client
 function getOpenAIClient() {
   if (!openai) {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    // Only use the server-side environment variable, not the public one
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key is not set');
     }

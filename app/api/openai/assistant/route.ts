@@ -4,7 +4,7 @@ import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userMessage, systemPrompt, knowledgeContent, model = "gpt-4-turbo", conversationHistory = [] } = await req.json();
+    const { userMessage, systemPrompt, knowledgeContent, conversationHistory = [] } = await req.json();
 
     if (!userMessage) {
       return NextResponse.json({ error: 'User message is required' }, { status: 400 });
@@ -57,16 +57,16 @@ export async function POST(req: NextRequest) {
       content: userMessage
     });
 
-    // Create the chat completion with the specified model
-    const completion = await openai.chat.completions.create({
-      model: model || "gpt-4-turbo",
-      messages: messages,
+    // Call the model - always use gpt-4o
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
       temperature: 0.7,
-      max_tokens: 1000,
+      max_tokens: 500,
     });
 
     // Extract and return the assistant's response
-    const assistantMessage = completion.choices[0].message.content;
+    const assistantMessage = response.choices[0].message.content;
     
     return NextResponse.json({ message: assistantMessage });
   } catch (error) {
