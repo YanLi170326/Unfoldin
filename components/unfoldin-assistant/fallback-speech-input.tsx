@@ -25,7 +25,8 @@ export default function FallbackSpeechInput({
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
-  const [minRecordingDuration] = useState(3000); // Minimum 3 seconds for better results
+  const [minRecordingDuration] = useState(6000); // Increased from 3000ms to 6000ms (6 seconds) for better results
+  const [recordingProgress, setRecordingProgress] = useState(0); // Progress percentage for visual indicator
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [browserInfo, setBrowserInfo] = useState<Record<string, boolean>>({});
 
@@ -92,6 +93,7 @@ export default function FallbackSpeechInput({
       const startTime = Date.now();
       setRecordingStartTime(startTime);
       setRecordingDuration(0);
+      setRecordingProgress(0);
       
       // Start a timer to update the recording duration
       if (timerRef.current) {
@@ -101,12 +103,16 @@ export default function FallbackSpeechInput({
       timerRef.current = setInterval(() => {
         const elapsed = Date.now() - startTime;
         setRecordingDuration(elapsed);
+        
+        // Calculate progress as a percentage of minRecordingDuration, capped at 100%
+        const progress = Math.min(100, (elapsed / minRecordingDuration) * 100);
+        setRecordingProgress(progress);
       }, 100);
       
       setIsRecording(true);
       setIsListening(true);
       
-      toast.info('Recording... Click the button again to stop and process speech.');
+      toast.info('Recording... Speak clearly and take your time. Click again when finished.');
     } catch (error) {
       console.error('Failed to start recording:', error);
       
@@ -120,7 +126,7 @@ export default function FallbackSpeechInput({
       setIsRecording(false);
       setIsListening(false);
     }
-  }, [setIsListening]);
+  }, [setIsListening, minRecordingDuration]);
 
   // Process audio using either the API or direct client-side approach
   const processAudio = useCallback(async (audioBlob: Blob) => {
@@ -196,15 +202,16 @@ export default function FallbackSpeechInput({
     try {
       // Check if we've met the minimum recording time
       const elapsed = recordingStartTime ? Date.now() - recordingStartTime : 0;
-      console.log(`Recording duration: ${elapsed}ms`);
+      console.log(`Recording duration: ${elapsed}ms, Minimum: ${minRecordingDuration}ms`);
       
       if (elapsed < minRecordingDuration) {
-        toast.warning(`Recording too short (${(elapsed/1000).toFixed(1)}s), please record for at least ${minRecordingDuration/1000}s`);
+        const remainingTime = Math.ceil((minRecordingDuration - elapsed) / 1000);
+        toast.warning(`Recording too short. Keep speaking for at least ${remainingTime} more second${remainingTime !== 1 ? 's' : ''}.`);
         return; // Don't stop recording yet
       }
       
       setIsProcessing(true);
-      toast.info('Processing speech...');
+      toast.info('Processing speech... This may take a moment.');
       
       // Stop recording and get the audio blob
       const audioBlob = await recorderRef.current.stop();
@@ -313,6 +320,17 @@ export default function FallbackSpeechInput({
           </Button>
           <div className="text-xs text-muted-foreground mt-1">
             Recording: {(recordingDuration / 1000).toFixed(1)}s
+            {recordingDuration < minRecordingDuration && (
+              <span className="ml-1 text-yellow-500">
+                (Need {Math.ceil((minRecordingDuration - recordingDuration) / 1000)}s more)
+              </span>
+            )}
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700 mt-1">
+            <div 
+              className="bg-blue-600 h-1.5 rounded-full" 
+              style={{ width: `${recordingProgress}%` }}
+            ></div>
           </div>
         </>
       )}

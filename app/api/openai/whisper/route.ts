@@ -65,6 +65,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Warning for very large files that might exceed API limits
+    if (audioFile.size > 25 * 1024 * 1024) { // 25MB limit for Whisper API
+      console.warn('Audio file is very large and may exceed API limits:', audioFile.size);
+    }
+    
     // Determine file extension based on mime type or fallback to webm
     let fileExtension = 'webm';
     if (audioFile.type) {
@@ -79,22 +84,42 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await audioFile.arrayBuffer());
     const file = new File([buffer], `audio.${fileExtension}`, { type: audioFile.type || `audio/${fileExtension}` });
     
+    // Set a longer timeout for the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    
     // Call OpenAI API directly
     try {
+      console.log('Starting transcription with Whisper API');
+      const startTime = Date.now();
+      
       const response = await openai.audio.transcriptions.create({
         file,
         model: 'whisper-1',
       });
-
+      
+      const processingTime = Date.now() - startTime;
+      
       // Return the transcription text
       console.log('Transcription successful:', {
         textLength: response.text.length,
+        processingTime: `${processingTime}ms`,
         browser: browserInfo
       });
       
+      clearTimeout(timeoutId); // Clear the timeout
       return NextResponse.json({ text: response.text });
     } catch (openaiError) {
       console.error('OpenAI transcription error:', openaiError);
+      clearTimeout(timeoutId); // Clear the timeout
+      
+      // Check if error is due to timeout
+      if (openaiError instanceof Error && openaiError.name === 'AbortError') {
+        return NextResponse.json(
+          { error: 'Transcription request timed out. The audio might be too long to process.' },
+          { status: 408 } // Request Timeout status
+        );
+      }
       
       // Try again with a different file extension if the first attempt fails
       if (fileExtension !== 'mp3') {
@@ -102,12 +127,17 @@ export async function POST(request: NextRequest) {
           console.log('Retrying with mp3 extension');
           const retryFile = new File([buffer], 'audio.mp3', { type: 'audio/mpeg' });
           
+          const retryStartTime = Date.now();
           const retryResponse = await openai.audio.transcriptions.create({
             file: retryFile,
             model: 'whisper-1',
           });
           
-          console.log('Retry transcription successful');
+          const retryProcessingTime = Date.now() - retryStartTime;
+          console.log('Retry transcription successful', {
+            processingTime: `${retryProcessingTime}ms`
+          });
+          
           return NextResponse.json({ text: retryResponse.text });
         } catch (retryError) {
           console.error('Retry transcription also failed:', retryError);
@@ -121,13 +151,24 @@ export async function POST(request: NextRequest) {
     console.error('Error transcribing audio:', error);
     
     let errorMessage = 'Unknown error occurred';
+    let statusCode = 500;
+    
     if (error instanceof Error) {
       errorMessage = error.message;
+      
+      // Try to provide more helpful error messages for common issues
+      if (errorMessage.includes('file too large')) {
+        errorMessage = 'Audio file is too large. Please limit recordings to under 25MB.';
+        statusCode = 413; // Payload Too Large
+      } else if (errorMessage.includes('timeout')) {
+        errorMessage = 'Processing timed out. Try recording a shorter message.';
+        statusCode = 408; // Request Timeout
+      }
     }
     
     return NextResponse.json(
       { error: errorMessage },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 }

@@ -33,7 +33,10 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
   const [isOnline, setIsOnline] = useState(true);
   const [isSecureContext, setIsSecureContext] = useState(true);
   const [recognitionStartTime, setRecognitionStartTime] = useState<number | null>(null);
-  const [minRecordingDuration] = useState(3000); // Minimum 3 seconds recording time
+  const [minRecordingDuration] = useState(6000); // Increased from 3000ms to 6000ms (6 seconds) minimum recording time
+  const [lastSpeechTimestamp, setLastSpeechTimestamp] = useState<number | null>(null);
+  const [silenceTimeout] = useState(2500); // 2.5 seconds of silence before stopping if no speech detected
+  const [hasDetectedSpeech, setHasDetectedSpeech] = useState(false);
 
   // 停止麦克风流
   const stopMicrophoneStream = useCallback(() => {
@@ -430,50 +433,79 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
       // Add all event listeners with error handling
       recognition.onstart = (event: Event) => {
         console.log('Speech recognition started successfully', event);
+        // Reset speech detection state
+        setHasDetectedSpeech(false);
+        setLastSpeechTimestamp(null);
       };
 
       // Add diagnostic event handlers
       recognition.onaudiostart = () => console.log('Audio capturing started');
       recognition.onsoundstart = () => console.log('Sound detected');
-      recognition.onspeechstart = () => console.log('Speech detected');
-      recognition.onspeechend = () => console.log('Speech ended');
+      recognition.onspeechstart = () => {
+        console.log('Speech detected');
+        setHasDetectedSpeech(true);
+        setLastSpeechTimestamp(Date.now()); // Track when speech was last detected
+      };
+      recognition.onspeechend = () => {
+        console.log('Speech ended');
+        // When speech ends, update the timestamp but don't stop right away
+        setLastSpeechTimestamp(Date.now());
+      };
       recognition.onsoundend = () => console.log('Sound ended');
       recognition.onaudioend = () => console.log('Audio capturing ended');
+
+      // Handle interim results to track speech activity
+      const handleInterimResults = (event: SpeechRecognitionEvent) => {
+        // Update the last speech timestamp to indicate ongoing speech
+        if (event.results && event.results.length > 0) {
+          setLastSpeechTimestamp(Date.now());
+        }
+      };
+
+      // Add an event listener for interim results
+      recognition.addEventListener('result', handleInterimResults);
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         try {
           // Check if results exist and are not empty
           if (event.results && event.results.length > 0 && event.results[0].length > 0) {
-            const transcript = event.results[0][0].transcript;
+            setHasDetectedSpeech(true);
+            setLastSpeechTimestamp(Date.now()); // Update last speech timestamp
+            
+            // Get the final result (last one)
+            const lastResultIndex = event.results.length - 1;
+            const transcript = event.results[lastResultIndex][0].transcript;
+            
             if (transcript && transcript.trim()) {
-              onTranscript(transcript);
-              
-              if (continuousMode || autoSubmit) {
-                // 自动提交，但保持麦克风开启
-                // 这里通过事件或回调触发 unfoldin-assistant.tsx 中的表单提交
-                const customEvent = new CustomEvent('speech-submit', { detail: { transcript } });
-                document.dispatchEvent(customEvent);
+              // Only process final results
+              if (event.results[lastResultIndex].isFinal) {
+                console.log('Final transcript received:', transcript);
+                onTranscript(transcript);
+                
+                if (continuousMode || autoSubmit) {
+                  // 自动提交，但保持麦克风开启
+                  // 这里通过事件或回调触发 unfoldin-assistant.tsx 中的表单提交
+                  const customEvent = new CustomEvent('speech-submit', { detail: { transcript } });
+                  document.dispatchEvent(customEvent);
+                } else {
+                  // 非连续模式下，完成识别后关闭麦克风
+                  setIsListening(false);
+                  stopMicrophoneStream();
+                }
+                
+                toast.success(`Speech recognition successful (${language === 'zh-CN' ? 'Chinese' : 'English'})`);
               } else {
-                // 非连续模式下，完成识别后关闭麦克风
-                setIsListening(false);
-                stopMicrophoneStream();
+                // Log interim results but don't process them
+                console.log('Interim transcript:', transcript);
               }
-              
-              toast.success(`Speech recognition successful (${language === 'zh-CN' ? 'Chinese' : 'English'})`);
-            } else {
-              toast.warning('No speech detected, please try again');
             }
-          } else {
-            toast.warning('No speech detected, please try again');
           }
         } catch (error) {
           console.error('Error processing speech recognition result:', error);
           toast.error('Error processing speech recognition result, please try again');
         }
         
-        if (!continuousMode) {
-          recognition.stop();
-        }
+        // Don't stop in the onresult handler - let the silence detection handle it
       };
 
       recognition.onerror = (event: SpeechRecognitionError) => {
@@ -542,19 +574,43 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
         const elapsed = recognitionStartTime ? now - recognitionStartTime : 0;
         console.log(`Speech recognition ended after ${elapsed}ms`);
         
-        // If we haven't recorded for minimum duration and we're still meant to be listening,
-        // restart the recognition process
-        if (elapsed < minRecordingDuration && isListening) {
-          console.log(`Restarting speech recognition - min duration not met (${elapsed}ms < ${minRecordingDuration}ms)`);
+        // Calculate time since last speech detection
+        const silenceElapsed = lastSpeechTimestamp ? now - lastSpeechTimestamp : 0;
+        console.log(`Time since last speech: ${silenceElapsed}ms, Silence timeout: ${silenceTimeout}ms`);
+        
+        // Decision tree for whether to restart recognition
+        const shouldRestart = 
+          // If we're still supposed to be listening
+          isListening && (
+            // If we haven't met minimum duration, always restart
+            elapsed < minRecordingDuration ||
+            // If we've detected speech and silence hasn't exceeded timeout, restart
+            (hasDetectedSpeech && lastSpeechTimestamp && silenceElapsed < silenceTimeout) ||
+            // If we're in continuous mode, always restart
+            continuousMode
+          );
+        
+        console.log(`Should restart recognition? ${shouldRestart}`, {
+          isListening,
+          elapsed,
+          minDuration: minRecordingDuration,
+          hasDetectedSpeech,
+          silenceElapsed,
+          silenceTimeout,
+          continuousMode
+        });
+        
+        // Restart logic
+        if (shouldRestart) {
           try {
             if (navigator.onLine) {
               // Add a small delay before restarting to let the previous recognition session fully close
               setTimeout(() => {
                 if (isListening) { // Double-check we're still supposed to be listening
+                  console.log('Restarting speech recognition');
                   recognition.start();
-                  console.log('Restarted speech recognition to meet minimum duration');
                 }
-              }, 100);
+              }, 300); // Slightly longer delay to ensure cleanup
               return; // Return here to prevent stopping the microphone
             }
           } catch (error) {
@@ -562,31 +618,9 @@ export default function SpeechInput({ onTranscript, isListening, setIsListening,
           }
         }
         
-        // 连续模式下，在onend后重新开始识别
-        if (continuousMode && isListening) {
-          try {
-            // Check network status before restarting
-            if (navigator.onLine) {
-              // Add a small delay before restarting
-              setTimeout(() => {
-                if (isListening) { // Double-check we're still supposed to be listening
-                  recognition.start();
-                }
-              }, 100);
-            } else {
-              toast.error('网络已断开，语音识别已停止。请检查网络连接后重试。');
-              setIsListening(false);
-              stopMicrophoneStream();
-            }
-          } catch (error) {
-            console.error('重启语音识别失败:', error);
-            setIsListening(false);
-            stopMicrophoneStream();
-          }
-        } else {
-          setIsListening(false);
-          stopMicrophoneStream();
-        }
+        // Only stop if we shouldn't restart
+        setIsListening(false);
+        stopMicrophoneStream();
       };
 
       // Additional error handling
