@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { UserIcon } from 'lucide-react';
 
 export function AuthChecker() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -84,6 +85,15 @@ export function AuthChecker() {
             onClick={handleGoToDashboard}
           >
             Dashboard
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => router.push('/profile')}
+            className="flex items-center gap-1"
+          >
+            <UserIcon size={14} />
+            Profile
           </Button>
           <Button 
             variant="outline" 

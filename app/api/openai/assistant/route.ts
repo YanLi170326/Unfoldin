@@ -1,6 +1,8 @@
 import { OpenAI } from 'openai';
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { cookies } from 'next/headers';
+import { saveSession } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
@@ -65,14 +67,33 @@ export async function POST(req: NextRequest) {
       max_tokens: 500,
     });
 
-    // Extract and return the assistant's response
-    const assistantMessage = response.choices[0].message.content;
-    
+    const assistantMessage = response.choices[0].message.content || '';
+
+    // Get user ID from cookie if available
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('user_id')?.value;
+
+    // If user is logged in, save the session to the database
+    if (userId) {
+      // Prepare session data - include the full conversation
+      const sessionData = {
+        conversation: [
+          ...conversationHistory,
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: assistantMessage }
+        ]
+      };
+
+      // Save to database
+      await saveSession(userId, sessionData);
+    }
+
     return NextResponse.json({ message: assistantMessage });
   } catch (error) {
-    console.error('Error in custom assistant API:', error);
+    console.error('Error calling OpenAI:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Failed to get response from assistant' },
+      { error: `Error calling OpenAI: ${errorMessage}` },
       { status: 500 }
     );
   }

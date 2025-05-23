@@ -1,7 +1,7 @@
 import { UnfoldinAssistant } from '@/components/unfoldin-assistant';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, UserIcon } from 'lucide-react';
 
 export default function DashboardPage() {
   return (
@@ -9,9 +9,22 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         <header className="mb-8 flex justify-between items-center">
           <h1 className="text-2xl font-bold">Unfoldin Dashboard</h1>
-          <Link href="/" className="text-sm hover:underline">
-            Sign Out
-          </Link>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              asChild 
+              className="flex items-center gap-2"
+            >
+              <Link href="/profile">
+                <UserIcon className="h-4 w-4" />
+                Profile
+              </Link>
+            </Button>
+            <Link href="/" className="text-sm hover:underline">
+              Sign Out
+            </Link>
+          </div>
         </header>
         
         <main>
